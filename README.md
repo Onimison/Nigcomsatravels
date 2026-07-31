@@ -1,36 +1,86 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NIGCOMSAT Travel Request Tool
+
+A self-service web application for managing staff travel requests at NIGCOMSAT. Staff submit travel requests, HR reviews and applies company policy (allowances), and the MD provides final approval.
+
+## Tech Stack
+
+- **Framework:** [Next.js 16](https://nextjs.org/) (App Router, TypeScript)
+- **Styling:** [Tailwind CSS 4](https://tailwindcss.com/)
+- **Backend:** [Supabase](https://supabase.com/) (Auth, Postgres, RLS)
+- **Validation:** [Zod](https://zod.dev/)
+- **Linting:** ESLint
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 20+
+- npm
+- A Supabase project (get credentials from your team lead)
+
+### Setup
 
 ```bash
+# Clone the repository
+git clone https://github.com/Onimison/Nigcomsatravel.git
+cd Nigcomsatravel
+
+# Install dependencies
+npm install
+
+# Set up environment variables
+cp env.example .env.local
+# Edit .env.local with your Supabase credentials
+
+# Start the development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to view the application.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Available Scripts
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Command | Description |
+|:---|:---|
+| `npm run dev` | Start development server |
+| `npm run build` | Create production build |
+| `npm run start` | Start production server |
+| `npm run lint` | Run ESLint |
 
-## Learn More
+## Project Structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+src/
+├── app/                 # Next.js App Router pages
+│   ├── (auth)/          # Login & OTP verification
+│   ├── (dashboard)/     # Role-based dashboards (staff, hr, md, admin)
+│   └── api/webhooks/    # External integration endpoints only
+├── components/          # React components (ui, forms, shared)
+├── hooks/               # Custom React hooks
+├── lib/
+│   ├── actions/         # Server Actions (business logic)
+│   ├── supabase/        # Supabase client configuration
+│   ├── utils/           # Helpers and constants
+│   └── validations/     # Zod validation schemas
+├── types/               # TypeScript type definitions
+└── proxy.ts             # Auth session management
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## User Roles
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Role | Dashboard | Capabilities |
+|:---|:---|:---|
+| **Staff** | `/staff` | Submit travel requests, view history |
+| **HR** | `/hr` | Review requests, set allowances, approve/reject |
+| **MD** | `/md` | Final approval authority |
+| **Admin** | `/admin` | Manage staff, levels, rates, departments |
 
-## Deploy on Vercel
+## Contributing
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for branch naming, commit format, and PR workflow.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Documentation
+
+- **Product Requirements:** `notes.md`
+- **Database Schema:** `supabase/migrations/`
+- **Environment Variables:** `env.example`
