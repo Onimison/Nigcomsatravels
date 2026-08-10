@@ -6,14 +6,16 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used when TODOs are implemented
-import { createAdminClient } from '@/lib/supabase/admin'
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used when TODOs are implemented
+import { requireAdmin } from '@/lib/utils/auth-guard'
+import {
+  rateReferenceSchema,
+  updateRateReferenceSchema,
+  fxRateSchema,
+  type RateReferenceInput,
+  type UpdateRateReferenceInput,
+} from '@/lib/validations/rates.schema'
+import { FX_RATE_SETTING_KEY } from '@/lib/utils/constants'
 import { revalidatePath } from 'next/cache'
-
-// ============================================================
-// Types
-// ============================================================
 
 export interface ActionResult {
   success: boolean
@@ -24,10 +26,6 @@ export interface ActionResult {
 // Rate Reference (Master Rate Table)
 // ============================================================
 
-/**
- * List all rate references.
- * PRD Section 3.4: "View and edit rate_reference (Master Rate Table)."
- */
 export async function listRateReferences() {
   const supabase = await createClient()
 
@@ -40,16 +38,7 @@ export async function listRateReferences() {
   return { success: true, data }
 }
 
-/**
- * Get rate reference for a specific destination and level.
- * Used by the "Suggest Standard Rates" button (PRD Section 3.2)
- * and the pre-submit estimate (PRD Section 3.1).
- */
-export async function getRateForDestination(
-  destination: string,
-  levelId: string,
-  mode: string
-) {
+export async function getRateForDestination(destination: string, levelId: string, mode: string) {
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -64,14 +53,51 @@ export async function getRateForDestination(
   return { success: true, data }
 }
 
+export async function addRateReference(input: RateReferenceInput): Promise<ActionResult> {
+  const auth = await requireAdmin()
+  if (!auth.authorized) return { success: false, error: auth.error }
+
+  const parsed = rateReferenceSchema.safeParse(input)
+  if (!parsed.success) return { success: false, error: parsed.error.message }
+
+  const supabase = await createClient()
+  const { error } = await supabase.from('rate_reference').insert(parsed.data)
+
+  if (error) {
+    return {
+      success: false,
+      error:
+        error.code === '23505'
+          ? 'A rate already exists for this destination, level, and mode'
+          : error.message,
+    }
+  }
+
+  revalidatePath('/admin')
+  return { success: true }
+}
+
+export async function updateRateReference(input: UpdateRateReferenceInput): Promise<ActionResult> {
+  const auth = await requireAdmin()
+  if (!auth.authorized) return { success: false, error: auth.error }
+
+  const parsed = updateRateReferenceSchema.safeParse(input)
+  if (!parsed.success) return { success: false, error: parsed.error.message }
+
+  const { id, ...fields } = parsed.data
+  const supabase = await createClient()
+  const { error } = await supabase.from('rate_reference').update(fields).eq('id', id)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/admin')
+  return { success: true }
+}
+
 // ============================================================
 // Rate Overrides (Audit Trail)
 // ============================================================
 
-/**
- * List all rate overrides for admin review.
- * PRD Section 3.4: "View rate_overrides log (HR manual entries)."
- */
 export async function listRateOverrides() {
   const supabase = await createClient()
 
@@ -85,34 +111,133 @@ export async function listRateOverrides() {
 }
 
 /**
- * Promote a rate override to the master rate_reference table.
- * PRD Section 3.4: "One-Click 'Promote to Master Rate'."
- *
- * TODO (Sprint 0):
- * 1. Fetch the override record
- * 2. Upsert into rate_reference
- * 3. Revalidate admin dashboard
+ * Maps a travel_requests allowance column to its rate_reference equivalent.
+ * `allowance_local` has no master-table column on purpose.
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Will be used when implemented
+const PROMOTABLE_FIELDS: Record<
+  string,
+  'accommodation_rate' | 'per_diem_rate' | 'flight_estimate' | 'airport_taxi'
+> = {
+  accommodation: 'accommodation_rate',
+  per_diem: 'per_diem_rate',
+  allowance_flight: 'flight_estimate',
+  allowance_taxi: 'airport_taxi',
+}
+
 export async function promoteOverrideToMaster(overrideId: string): Promise<ActionResult> {
-  // TODO: Implement promotion logic
-  throw new Error('Not implemented — Sprint 0 task')
+  const auth = await requireAdmin()
+  if (!auth.authorized) return { success: false, error: auth.error }
+
+  const supabase = await createClient()
+
+  const { data: override, error: overrideError } = await supabase
+    .from('rate_overrides')
+    .select('field_name, overridden_value, request_id')
+    .eq('id', overrideId)
+    .single()
+
+  if (overrideError || !override) {
+    return { success: false, error: overrideError?.message ?? 'Override not found' }
+  }
+
+  const targetColumn = PROMOTABLE_FIELDS[override.field_name]
+  if (!targetColumn) {
+    return {
+      success: false,
+      error: `"${override.field_name}" has no equivalent Master Rate Table column and cannot be promoted.`,
+    }
+  }
+
+  const { data: request, error: requestError } = await supabase
+    .from('travel_requests')
+    .select('destination, mode, staff_id')
+    .eq('id', override.request_id)
+    .single()
+
+  if (requestError || !request) {
+    return { success: false, error: requestError?.message ?? 'Related travel request not found' }
+  }
+
+  const { data: staffMember, error: staffError } = await supabase
+    .from('staff')
+    .select('level_id')
+    .eq('id', request.staff_id)
+    .single()
+
+  if (staffError || !staffMember?.level_id) {
+    return { success: false, error: 'Could not determine the staff level for this request' }
+  }
+
+  const { error: upsertError } = await supabase.from('rate_reference').upsert(
+    {
+      destination: request.destination,
+      level_id: staffMember.level_id,
+      mode: request.mode,
+      [targetColumn]: override.overridden_value,
+    },
+    { onConflict: 'destination,level_id,mode' }
+  )
+
+  if (upsertError) return { success: false, error: upsertError.message }
+
+  revalidatePath('/admin')
+  return { success: true }
+}
+
+// ============================================================
+// Rate Suggestions (AI agent write-target — read-only here)
+// ============================================================
+
+export async function listRateSuggestions() {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('rate_suggestions')
+    .select('*')
+    .order('created_at', { ascending: false })
+
+  if (error) return { success: false, error: error.message, data: [] }
+  return { success: true, data }
 }
 
 // ============================================================
 // FX Rate (PRD Section 5.2)
 // ============================================================
 
-/**
- * Set the daily FX rate override.
- * PRD Section 3.4: "Manual override for daily exchange rate."
- *
- * TODO (Sprint 0):
- * 1. Store in a config/settings table or KV store
- * 2. This rate is used for new international requests
- */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Will be used when implemented
+export async function getFxRateOverride() {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('app_settings')
+    .select('value, updated_at')
+    .eq('key', FX_RATE_SETTING_KEY)
+    .maybeSingle()
+
+  if (error) return { success: false, error: error.message, data: null }
+  return { success: true, data }
+}
+
 export async function setFxRateOverride(rate: number): Promise<ActionResult> {
-  // TODO: Implement FX rate storage
-  throw new Error('Not implemented — Sprint 0 task')
+  const auth = await requireAdmin()
+  if (!auth.authorized) return { success: false, error: auth.error }
+
+  const parsed = fxRateSchema.safeParse({ rate })
+  if (!parsed.success) return { success: false, error: parsed.error.message }
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const { error } = await supabase.from('app_settings').upsert({
+    key: FX_RATE_SETTING_KEY,
+    value: String(parsed.data.rate),
+    updated_by: user?.id ?? null,
+    updated_at: new Date().toISOString(),
+  })
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/admin')
+  return { success: true }
 }
