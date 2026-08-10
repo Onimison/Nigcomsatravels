@@ -11,6 +11,13 @@
 // ============================================================
 // Enums
 // ============================================================
+/** Generic key/value config store (e.g. FX rate override). PRD Section 3.4. */
+export interface AppSetting {
+  key: string
+  value: string
+  updated_by: string | null
+  updated_at: string
+}
 
 /** Roles assigned to staff members (PRD Section 2.2) */
 export type UserRole = 'staff' | 'hr' | 'md' | 'admin'
@@ -139,7 +146,7 @@ export interface AuthAuditLog {
 // ============================================================
 // Insert Types (fields the client provides; DB defaults excluded)
 // ============================================================
-
+export type RateReferenceInsert = Omit<RateReference, 'id'>
 export type DepartmentInsert = Omit<Department, 'id'>
 export type LevelInsert = Omit<Level, 'id'>
 export type StaffInsert = Omit<Staff, 'created_at'>
@@ -166,4 +173,14 @@ export interface TravelRequestWithStaff extends TravelRequest {
   staff: Pick<Staff, 'first_name' | 'surname' | 'email'> | null
   level: Pick<Level, 'name' | 'coverage_percent'> | null
   department: Pick<Department, 'name'> | null
+}
+
+/** Rate override with the HR staff member's name resolved (Admin audit log) */
+export interface RateOverrideWithStaff extends RateOverride {
+  hr_staff: Pick<Staff, 'first_name' | 'surname'> | null
+}
+
+/** Rate reference with the level's name resolved (Admin Master Rate Table) */
+export interface RateReferenceWithLevel extends RateReference {
+  level: Pick<Level, 'name'> | null
 }

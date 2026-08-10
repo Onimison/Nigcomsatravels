@@ -9,6 +9,9 @@ import type { RequestStatus, ApprovalStatus } from '@/types/database'
 // Status Label Mappings (PRD Section 4)
 // ============================================================
 
+/** Key used in the app_settings table for the daily USD→NGN FX rate. */
+export const FX_RATE_SETTING_KEY = 'fx_rate_usd_ngn'
+
 export const REQUEST_STATUS_LABELS: Record<RequestStatus, string> = {
   pending_hr: 'Awaiting HR Review',
   pending_md: 'Awaiting MD Approval',
