@@ -1,4 +1,8 @@
 import type { Metadata } from 'next'
+import { redirect } from 'next/navigation'
+import { requireRole } from '@/lib/utils/auth-guard'
+import { getPendingMDRequests, getMDHistory } from '@/lib/actions/requests.actions'
+import { MDDashboard } from '@/components/md/md-dashboard'
 
 export const metadata: Metadata = {
   title: 'MD Dashboard — NIGCOMSAT Travel',
@@ -9,23 +13,23 @@ export const metadata: Metadata = {
  * MD Dashboard — PRD Section 3.3
  *
  * Primary Action: Approve or Reject Requests (Status = pending_md)
- *
- * Key Features to implement (Sprint 3 — Frontend):
- * - Approval queue with sorting/filtering:
- *   - Sort: Total Cost (High→Low), Earliest Departure, Department
- *   - Filter: Department, Destination
- * - Review screen showing:
- *   - Full cost breakdown (Fields 8-12)
- *   - Applied level coverage percentage
- *   - Final total cost
- *   - Staff's original reason for travel
- *   - HR's recommendation/note (side-by-side)
- * - Approve / Reject actions (mandatory rejection reason)
- * - History of past approvals with cost snapshots
- *
- * Data source: getPendingMDRequests() from requests.actions.ts
+ * Queue sorting/filtering, cost breakdown, and approve/reject actions live
+ * in the client component below; this page is just auth + data fetching.
  */
-export default function MDDashboardPage() {
+export default async function MDDashboardPage() {
+  const auth = await requireRole('md', 'admin')
+  if (!auth.authorized) {
+    // Friendly redirect for a role that simply isn't MD — RLS is the real
+    // boundary (PRD Section 7.1); the root page re-routes to their own
+    // dashboard based on their actual role.
+    redirect('/')
+  }
+
+  const [pendingResult, historyResult] = await Promise.all([
+    getPendingMDRequests(),
+    getMDHistory(),
+  ])
+
   return (
     <div className="space-y-6">
       <div>
@@ -37,25 +41,18 @@ export default function MDDashboardPage() {
         </p>
       </div>
 
-      {/* TODO (Sprint 3): Pending Approval Queue */}
-      <section className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">
-          Pending Approval
-        </h2>
-        <p className="mt-2 text-sm text-gray-500">
-          No requests awaiting MD approval.
+      {!pendingResult.success && (
+        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+          Could not load pending requests: {pendingResult.error}
         </p>
-      </section>
+      )}
+      {!historyResult.success && (
+        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+          Could not load approval history: {historyResult.error}
+        </p>
+      )}
 
-      {/* TODO (Sprint 3): Approval History */}
-      <section className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">
-          Approval History
-        </h2>
-        <p className="mt-2 text-sm text-gray-500">
-          Past approvals and rejections will appear here.
-        </p>
-      </section>
+      <MDDashboard pending={pendingResult.data} history={historyResult.data} />
     </div>
   )
 }
