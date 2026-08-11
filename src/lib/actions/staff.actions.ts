@@ -1,4 +1,4 @@
-'use server'
+'server-only'
 
 /**
  * Staff Management Server Actions.
@@ -9,9 +9,9 @@
  * manage staff records.
  */
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used when TODOs are implemented
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/utils/auth-guard'
 import {
   createStaffSchema,
   updateStaffSchema,
@@ -19,60 +19,16 @@ import {
   type CreateStaffInput,
   type UpdateStaffInput,
 } from '@/lib/validations/staff.schema'
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used when TODOs are implemented
 import { revalidatePath } from 'next/cache'
-
-// ============================================================
-// Types
-// ============================================================
 
 export interface ActionResult {
   success: boolean
   error?: string
 }
 
-// ============================================================
-// Authorization Helper
-// ============================================================
-
-/**
- * Verify the current user has admin role.
- * All staff management actions require admin access.
- */
-async function requireAdmin(): Promise<{ authorized: true } | { authorized: false; error: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    return { authorized: false, error: 'Not authenticated' }
-  }
-
-  const { data: staff } = await supabase
-    .from('staff')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (staff?.role !== 'admin') {
-    return { authorized: false, error: 'Insufficient permissions' }
-  }
-
-  return { authorized: true }
-}
-
-// ============================================================
-// Actions
-// ============================================================
-
 /**
  * Add a new staff member.
  * PRD Section 3.4: "Add, edit, deactivate staff (Name, Email, Role, Department, Level)."
- *
- * TODO (Sprint 0):
- * 1. Validate input with createStaffSchema
- * 2. Create auth user via admin.auth.admin.createUser()
- * 3. Insert into staff table
- * 4. Revalidate admin dashboard
  */
 export async function addStaff(input: CreateStaffInput): Promise<ActionResult> {
   const auth = await requireAdmin()
@@ -83,23 +39,43 @@ export async function addStaff(input: CreateStaffInput): Promise<ActionResult> {
     return { success: false, error: parsed.error.message }
   }
 
-  // TODO: Implement with createAdminClient()
-  // 1. admin.auth.admin.createUser({ email, email_confirm: true })
-  // 2. Insert staff record linking to auth user
-  // 3. revalidatePath('/admin')
+  const admin = createAdminClient()
 
-  throw new Error('Not implemented — Sprint 0 task')
+  const { data: created, error: createError } = await admin.auth.admin.createUser({
+    email: parsed.data.email,
+    email_confirm: true, // no confirmation link — OTP login handles verification
+  })
+
+  if (createError || !created.user) {
+    return { success: false, error: createError?.message ?? 'Could not create auth user' }
+  }
+
+  const { error: insertError } = await admin.from('staff').insert({
+    id: created.user.id,
+    email: parsed.data.email,
+    first_name: parsed.data.first_name,
+    surname: parsed.data.surname,
+    role: parsed.data.role,
+    department_id: parsed.data.department_id,
+    level_id: parsed.data.level_id,
+    active: true,
+  })
+
+  if (insertError) {
+    await admin.auth.admin.deleteUser(created.user.id)
+    return {
+      success: false,
+      error: insertError.code === '23505' ? 'A staff member with this email already exists' : insertError.message,
+    }
+  }
+
+  revalidatePath('/admin')
+  return { success: true }
 }
 
 /**
  * Edit an existing staff member.
  * PRD Section 3.4: Admin can edit Name, Email, Role, Department, Level.
- *
- * TODO (Sprint 0):
- * 1. Validate input with updateStaffSchema
- * 2. Update staff table row
- * 3. If email changed, update auth.users email
- * 4. Revalidate admin dashboard
  */
 export async function editStaff(input: UpdateStaffInput): Promise<ActionResult> {
   const auth = await requireAdmin()
@@ -110,18 +86,28 @@ export async function editStaff(input: UpdateStaffInput): Promise<ActionResult> 
     return { success: false, error: parsed.error.message }
   }
 
-  // TODO: Implement with createAdminClient()
-  throw new Error('Not implemented — Sprint 0 task')
+  const { id, email, ...rest } = parsed.data
+  const admin = createAdminClient()
+
+  if (email) {
+    const { error: authError } = await admin.auth.admin.updateUserById(id, { email })
+    if (authError) return { success: false, error: authError.message }
+  }
+
+  const { error } = await admin
+    .from('staff')
+    .update({ ...(email ? { email } : {}), ...rest })
+    .eq('id', id)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/admin')
+  return { success: true }
 }
 
 /**
  * Deactivate a staff member (soft delete).
  * PRD Section 2.3: "Deactivated staff (offboarded) cannot log in."
- *
- * TODO (Sprint 0):
- * 1. Set staff.active = false
- * 2. Optionally ban the auth user
- * 3. Revalidate admin dashboard
  */
 export async function deactivateStaff(staffId: string): Promise<ActionResult> {
   const auth = await requireAdmin()
@@ -132,8 +118,17 @@ export async function deactivateStaff(staffId: string): Promise<ActionResult> {
     return { success: false, error: parsed.error.message }
   }
 
-  // TODO: Implement with createAdminClient()
-  throw new Error('Not implemented — Sprint 0 task')
+  const admin = createAdminClient()
+
+  const { error } = await admin.from('staff').update({ active: false }).eq('id', parsed.data.id)
+  if (error) return { success: false, error: error.message }
+
+  // Belt-and-braces: ban the auth user too, so a fresh OTP request also fails
+  // even if `staff.active` were ever bypassed.
+  await admin.auth.admin.updateUserById(parsed.data.id, { ban_duration: '876000h' })
+
+  revalidatePath('/admin')
+  return { success: true }
 }
 
 /**
