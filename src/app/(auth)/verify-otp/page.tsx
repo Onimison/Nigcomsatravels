@@ -1,19 +1,17 @@
 /**
  * OTP Verification Page — PRD Section 2.1
  * User enters the 6-digit code sent to their email.
- *
- * TODO (Sprint 1 — Frontend):
- * - Accept email from query param or navigation state
- * - Style with ShadCN/Radix components
- * - Add individual digit input fields (6 boxes)
- * - Auto-submit when all 6 digits are entered
- * - Show "Resend Code" link with cooldown timer
- * - Handle errors from verifyOtp action
  */
 
 import { verifyOtp } from '@/lib/actions/auth.actions'
 
-export default function VerifyOtpPage() {
+export default async function VerifyOtpPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ email?: string }>
+}) {
+  const { email } = await searchParams
+
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm dark:border-gray-800 dark:bg-gray-900">
       <div className="mb-6 text-center">
@@ -21,13 +19,12 @@ export default function VerifyOtpPage() {
           Enter Verification Code
         </h1>
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-          We sent a 6-digit code to your email
+          We sent a 6-digit code to {email ?? 'your email'}
         </p>
       </div>
 
       <form action={async (formData) => { 'use server'; await verifyOtp(formData) }} className="space-y-4">
-        {/* TODO: Replace with email from navigation state */}
-        <input type="hidden" name="email" value="" />
+        <input type="hidden" name="email" value={email ?? ''} />
 
         <div>
           <label

@@ -38,20 +38,21 @@ export interface ActionResult {
 /**
  * Verify the current user has admin role.
  * All staff management actions require admin access.
+ * Keys off email, not id, since staff.id is not the Supabase auth user id.
  */
 async function requireAdmin(): Promise<{ authorized: true } | { authorized: false; error: string }> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) {
+  if (!user?.email) {
     return { authorized: false, error: 'Not authenticated' }
   }
 
   const { data: staff } = await supabase
     .from('staff')
     .select('role')
-    .eq('id', user.id)
-    .single()
+    .eq('email', user.email)
+    .maybeSingle()
 
   if (staff?.role !== 'admin') {
     return { authorized: false, error: 'Insufficient permissions' }

@@ -4,108 +4,102 @@
  * Authentication Server Actions.
  * PRD Section 2.1 — OTP Login Mechanism
  * PRD Section 2.3 — Account Status check
- *
- * Implementation: Supabase signInWithOtp() / verifyOtp()
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 import { ROLE_DASHBOARD_PATHS } from '@/lib/utils/constants'
 import type { UserRole } from '@/types/database'
-
-// ============================================================
-// Types
-// ============================================================
 
 export interface AuthActionResult {
   success: boolean
   error?: string
 }
 
-// ============================================================
-// Actions
-// ============================================================
+async function logAuthAttempt(email: string, success: boolean) {
+  const admin = createAdminClient()
+  const headersList = await headers()
+  const ip =
+    headersList.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    headersList.get('x-real-ip') ??
+    'unknown'
 
-/**
- * Send a 6-digit OTP to the user's email.
- * PRD: "6-digit numeric OTP sent to the user's official email."
- *
- * TODO (Sprint 1):
- * 1. Validate email exists in staff table and staff.active = true
- * 2. Call supabase.auth.signInWithOtp({ email })
- * 3. Log attempt to auth_audit_log (via admin client)
- * 4. Return success/error
- */
-export async function sendOtp(formData: FormData): Promise<AuthActionResult> {
-  const email = formData.get('email') as string
+  await admin.from('auth_audit_log').insert({ email, success, ip_address: ip })
+}
 
-  if (!email) {
-    return { success: false, error: 'Email is required' }
+export async function sendOtp(rawEmail: string): Promise<AuthActionResult> {
+  const email = rawEmail?.trim().toLowerCase()
+  if (!email) return { success: false, error: 'Email is required' }
+
+  const admin = createAdminClient()
+
+  const { data: staffRecord } = await admin
+    .from('staff')
+    .select('id, active')
+    .eq('email', email)
+    .maybeSingle()
+
+  const eligible = !!staffRecord && staffRecord.active === true
+  await logAuthAttempt(email, eligible)
+
+  if (!eligible) {
+    return { success: false, error: 'Unable to send a code to this email.' }
   }
 
   const supabase = await createClient()
 
-  // TODO: Check staff.active = true before sending OTP
-  // TODO: Log to auth_audit_log
-
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: {
-      shouldCreateUser: false, // Only existing staff can log in
-    },
+    options: { shouldCreateUser: true },
   })
 
   if (error) {
-    return { success: false, error: error.message }
+    // TEMPORARY DEBUG LOGGING — remove once the real cause is found
+    console.error('=== signInWithOtp FULL ERROR ===')
+    console.error('name:', error.name)
+    console.error('status:', error.status)
+    console.error('code:', error.code)
+    console.error('message:', error.message)
+    console.error('full object:', JSON.stringify(error, Object.getOwnPropertyNames(error)))
+    console.error('================================')
+
+    return { success: false, error: error.message || 'Unknown error — check server logs' }
   }
 
   return { success: true }
 }
 
-/**
- * Verify the OTP code entered by the user.
- * PRD: "Verification via verifyOtp() with type='email'."
- *
- * TODO (Sprint 1):
- * 1. Verify OTP via supabase.auth.verifyOtp()
- * 2. Fetch user role from staff table
- * 3. Log success to auth_audit_log
- * 4. Redirect to role-specific dashboard
- */
-export async function verifyOtp(formData: FormData): Promise<AuthActionResult> {
-  const email = formData.get('email') as string
-  const token = formData.get('token') as string
+export async function verifyOtp(rawEmail: string, token: string): Promise<AuthActionResult> {
+  const email = rawEmail?.trim().toLowerCase()
 
   if (!email || !token) {
     return { success: false, error: 'Email and OTP code are required' }
   }
 
   const supabase = await createClient()
+  const { error } = await supabase.auth.verifyOtp({ email, token, type: 'email' })
 
-  const { error } = await supabase.auth.verifyOtp({
-    email,
-    token,
-    type: 'email',
-  })
+  await logAuthAttempt(email, !error)
 
-  if (error) {
-    return { success: false, error: error.message }
-  }
+  if (error) return { success: false, error: error.message }
 
-  // Fetch user role and redirect to appropriate dashboard
   const { data: staff } = await supabase
     .from('staff')
-    .select('role')
-    .single()
+    .select('role, active')
+    .eq('email', email)
+    .maybeSingle()
 
-  const role = (staff?.role as UserRole) ?? 'staff'
+  if (!staff || !staff.active) {
+    await supabase.auth.signOut()
+    return { success: false, error: 'Account is inactive. Contact your administrator.' }
+  }
+
+  const role = staff.role as UserRole
   redirect(ROLE_DASHBOARD_PATHS[role])
 }
 
-/**
- * Sign out the current user.
- * PRD Section 2.1: "Mandatory logout button; no persistent 'remember me'."
- */
 export async function signOut(): Promise<void> {
   const supabase = await createClient()
   await supabase.auth.signOut()
