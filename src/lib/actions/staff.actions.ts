@@ -1,4 +1,5 @@
-'server-only'
+'use server'
+import 'server-only'
 
 /**
  * Staff Management Server Actions.
