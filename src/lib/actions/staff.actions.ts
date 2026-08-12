@@ -1,5 +1,4 @@
-'server-only'
-
+'use server'
 /**
  * Staff Management Server Actions.
  * PRD Section 3.4 — System Admin Dashboard
