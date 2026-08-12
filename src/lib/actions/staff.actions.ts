@@ -1,6 +1,4 @@
 'use server'
-import 'server-only'
-
 /**
  * Staff Management Server Actions.
  * PRD Section 3.4 — System Admin Dashboard
