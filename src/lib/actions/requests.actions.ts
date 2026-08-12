@@ -9,6 +9,7 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { requireRole } from '@/lib/utils/auth-guard'
 import {
   createRequestSchema,
   hrReviewSchema,
@@ -247,15 +248,32 @@ export async function hrReviewRequest(input: HRReviewInput): Promise<ActionResul
 // ============================================================
 
 /**
+ * Fields selected for the MD queue and history views: staff identity +
+ * department + level (for coverage %), plus the full approvals trail so the
+ * UI can pull HR's forwarding note (the `hr_approved` row's `reason`) and,
+ * for history, the final HR/MD decision reason.
+ */
+const MD_REQUEST_SELECT = `*,
+  staff:staff(
+    first_name, surname, email,
+    department:departments(name),
+    level:levels(name, coverage_percent)
+  ),
+  approvals(status, reason, is_final, timestamp)`
+
+/**
  * Get all requests pending MD approval.
  * PRD Section 3.3: MD sees requests with status = 'pending_md'.
+ * Sorting/filtering (cost, department, destination) happens client-side —
+ * the queue is small enough that a materialized view isn't warranted yet
+ * (PRD Section 6.1 applies the same reasoning to reporting).
  */
 export async function getPendingMDRequests() {
   const supabase = await createClient()
 
   const { data, error } = await supabase
     .from('travel_requests')
-    .select('*')
+    .select(MD_REQUEST_SELECT)
     .eq('status', 'pending_md')
     .order('submitted_at', { ascending: true })
 
@@ -264,17 +282,42 @@ export async function getPendingMDRequests() {
 }
 
 /**
+ * Get MD's decision history: requests that reached a final MD-visible
+ * outcome. PRD Section 3.3: "History: Full view of past approvals with
+ * cost snapshots." Mirrors the MD read RLS policy exactly, so this never
+ * returns more than MD is already allowed to see.
+ */
+export async function getMDHistory() {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('travel_requests')
+    .select(MD_REQUEST_SELECT)
+    .in('status', ['approved', 'md_rejected', 'rejected_final'])
+    .order('updated_at', { ascending: false })
+
+  if (error) return { success: false, error: error.message, data: [] }
+  return { success: true, data }
+}
+
+/**
  * MD approves or rejects a request.
- * PRD Section 3.3 + Section 5.4: Mandatory rejection reason.
+ * PRD Section 3.3 + Section 5.4: Mandatory rejection reason (also enforced
+ * by the `approvals.rejection_requires_reason` DB constraint).
  *
- * TODO (Sprint 3):
- * 1. Validate with approvalActionSchema
- * 2. Update travel_requests.status
- * 3. Insert into approvals table
- * 4. If rejected_final, block resubmission
- * 5. Revalidate MD dashboard
+ * The status flip is a compare-and-swap — `.eq('status', 'pending_md')` on
+ * the UPDATE — rather than a separate read-then-write. Without that, two
+ * concurrent calls on the same request (double-click, a retry, two MD
+ * sessions) could both pass a stale "is it still pending_md?" check and
+ * each insert their own approvals row, even though only one status change
+ * can actually win. The CAS UPDATE runs first specifically so only its
+ * winner ever inserts an approval — the loser gets zero rows back and
+ * bails before writing anything.
  */
 export async function mdApproveReject(input: ApprovalActionInput): Promise<ActionResult> {
+  const auth = await requireRole('md', 'admin')
+  if (!auth.authorized) return { success: false, error: auth.error }
+
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -285,6 +328,44 @@ export async function mdApproveReject(input: ApprovalActionInput): Promise<Actio
     return { success: false, error: parsed.error.message }
   }
 
-  // TODO: Implement MD approval/rejection logic
-  throw new Error('Not implemented — Sprint 3 task')
+  const { request_id, action, reason, is_final } = parsed.data
+
+  // PRD Section 4: a final rejection is a distinct terminal status
+  // (`rejected_final`) — otherwise `md_rejected` allows the staff member
+  // to resubmit.
+  const newStatus = action === 'approve' ? 'approved' : is_final ? 'rejected_final' : 'md_rejected'
+
+  const { data: updated, error: updateError } = await supabase
+    .from('travel_requests')
+    .update({ status: newStatus })
+    .eq('id', request_id)
+    .eq('status', 'pending_md')
+    .select('id')
+    .maybeSingle()
+
+  if (updateError) return { success: false, error: updateError.message }
+  if (!updated) {
+    return { success: false, error: 'This request is no longer awaiting MD approval' }
+  }
+
+  const { error: approvalError } = await supabase.from('approvals').insert({
+    request_id,
+    approver_id: user.id,
+    status: action === 'approve' ? 'md_approved' : 'md_rejected',
+    reason: reason ?? null,
+    is_final,
+  })
+
+  if (approvalError) {
+    // The status change already committed and won't be retried by the
+    // caller (a retry would just see "no longer pending_md" above), so
+    // surface this as distinct from a normal validation failure.
+    return {
+      success: false,
+      error: `Decision saved but the audit log entry failed: ${approvalError.message}`,
+    }
+  }
+
+  revalidatePath('/md')
+  return { success: true }
 }

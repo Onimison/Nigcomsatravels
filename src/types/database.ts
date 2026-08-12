@@ -175,6 +175,23 @@ export interface TravelRequestWithStaff extends TravelRequest {
   department: Pick<Department, 'name'> | null
 }
 
+/** One approval/rejection record as embedded in the MD queue/history queries */
+export type ApprovalTrailEntry = Pick<Approval, 'status' | 'reason' | 'is_final' | 'timestamp'>
+
+/**
+ * Travel request shape returned by `getPendingMDRequests()` / `getMDHistory()`
+ * — staff identity nested with department + level (coverage %), plus the
+ * full approvals trail (used to surface HR's forwarding note and, in
+ * history, the final decision reason). PRD Section 3.3.
+ */
+export interface TravelRequestForMD extends TravelRequest {
+  staff: (Pick<Staff, 'first_name' | 'surname' | 'email'> & {
+    department: Pick<Department, 'name'> | null
+    level: Pick<Level, 'name' | 'coverage_percent'> | null
+  }) | null
+  approvals: ApprovalTrailEntry[] | null
+}
+
 /** Rate override with the HR staff member's name resolved (Admin audit log) */
 export interface RateOverrideWithStaff extends RateOverride {
   hr_staff: Pick<Staff, 'first_name' | 'surname'> | null
