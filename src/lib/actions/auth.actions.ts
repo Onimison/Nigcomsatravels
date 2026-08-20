@@ -70,46 +70,56 @@ async function logAuthAttempt(email: string, success: boolean): Promise<void> {
  * PRD 2.3: "Login checks staff.active = true. Deactivated staff cannot log in."
  */
 export async function sendOtp(input: SendOtpInput): Promise<AuthActionResult> {
-  const parsed = sendOtpSchema.safeParse(input)
-  if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message ?? 'Please enter a valid email address' }
+  try {
+    const parsed = sendOtpSchema.safeParse(input)
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? 'Please enter a valid email address' }
+    }
+    const { email } = parsed.data
+
+    // Pre-auth: the caller has no session yet, so RLS on `staff` (own-row-only)
+    // would block this read entirely. Admin client is required here, not a
+    // shortcut around security — this check IS the security boundary.
+    const admin = createAdminClient()
+    const { data: staff, error: staffError } = await admin
+      .from('staff')
+      .select('active')
+      .eq('email', email)
+      .maybeSingle()
+
+    if (staffError) {
+      console.error('[sendOtp] staff lookup error:', staffError)
+      return { success: false, error: `Database error: ${staffError.message}` }
+    }
+
+    if (!staff) {
+      await logAuthAttempt(email, false)
+      return { success: false, error: 'This email is not registered. Contact your administrator.' }
+    }
+
+    if (!staff.active) {
+      await logAuthAttempt(email, false)
+      return { success: false, error: 'This account has been deactivated. Contact your administrator.' }
+    }
+
+    const supabase = await createClient()
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: false, // Only existing staff can log in
+      },
+    })
+
+    if (error) {
+      await logAuthAttempt(email, false)
+      return { success: false, error: error.message }
+    }
+
+    return { success: true }
+  } catch (err) {
+    console.error('[sendOtp] unexpected error:', err)
+    return { success: false, error: 'An unexpected error occurred. Please try again.' }
   }
-  const { email } = parsed.data
-
-  // Pre-auth: the caller has no session yet, so RLS on `staff` (own-row-only)
-  // would block this read entirely. Admin client is required here, not a
-  // shortcut around security — this check IS the security boundary.
-  const admin = createAdminClient()
-  const { data: staff } = await admin
-    .from('staff')
-    .select('active')
-    .eq('email', email)
-    .maybeSingle()
-
-  if (!staff) {
-    await logAuthAttempt(email, false)
-    return { success: false, error: 'This email is not registered. Contact your administrator.' }
-  }
-
-  if (!staff.active) {
-    await logAuthAttempt(email, false)
-    return { success: false, error: 'This account has been deactivated. Contact your administrator.' }
-  }
-
-  const supabase = await createClient()
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: {
-      shouldCreateUser: false, // Only existing staff can log in
-    },
-  })
-
-  if (error) {
-    await logAuthAttempt(email, false)
-    return { success: false, error: error.message }
-  }
-
-  return { success: true }
 }
 
 /**
