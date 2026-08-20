@@ -9,6 +9,9 @@ export const rateReferenceSchema = z.object({
   mode: z.enum(['air', 'road'], {
     message: 'Please select a travel mode',
   }),
+  route_type: z.enum(['domestic', 'international'], {
+    message: 'Please select domestic or international',
+  }),
   accommodation_rate: z.number().nonnegative('Rate cannot be negative').nullable().optional(),
   per_diem_rate: z.number().nonnegative('Rate cannot be negative').nullable().optional(),
   flight_estimate: z.number().nonnegative('Rate cannot be negative').nullable().optional(),

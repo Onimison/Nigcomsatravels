@@ -1,4 +1,15 @@
 import type { Metadata } from 'next'
+import { redirect } from 'next/navigation'
+import { requireRole } from '@/lib/utils/auth-guard'
+import { listStaff } from '@/lib/actions/staff.actions'
+import { listDepartments } from '@/lib/actions/departments.actions'
+import { listLevels } from '@/lib/actions/levels.actions'
+import { listRateReferences } from '@/lib/actions/rates.actions'
+import { StaffManagement } from '@/components/admin/staff-management'
+import { LevelManagement } from '@/components/admin/level-management'
+import { RateManagement } from '@/components/admin/rate-management'
+import { PageHeader } from '@/components/ui/page-header'
+import type { Department, Level, RateReferenceWithLevel, StaffWithDetails } from '@/types/database'
 
 export const metadata: Metadata = {
   title: 'Admin Dashboard — NIGCOMSAT Travel',
@@ -6,77 +17,78 @@ export const metadata: Metadata = {
 }
 
 /**
- * Admin Dashboard — PRD Section 3.4
+ * Admin Dashboard — PRD Section 3.4.
+ * Access: Role = admin (assigned to HR Head or IT lead).
  *
- * Access: Role = admin (assigned to HR Head or IT lead)
- *
- * Key Features to implement (Sprint 0 — Frontend):
- * - Staff Management: Add, edit, deactivate staff
- * - Level Configuration: Edit coverage_percent and flight_class
- * - Rate Management:
- *   - View/edit rate_reference (Master Rate Table)
- *   - View rate_overrides log
- *   - "Promote to Master Rate" button
- *   - View AI rate_suggestions (if enabled)
- * - Department Management: Add/edit departments, budget ceilings
- * - FX Rate Override: Manual daily exchange rate
- *
- * Data sources:
- *   - listStaff() from staff.actions.ts
- *   - listRateReferences(), listRateOverrides() from rates.actions.ts
+ * - Staff Management: src/components/admin/staff-management.tsx
+ * - Level Configuration: src/components/admin/level-management.tsx — the
+ *   mechanism the demo travel policy runs on (TRAVEL_POLICY_DEMO.md)
+ * - Rate Management / Flight Price Reference: src/components/admin/rate-management.tsx
+ *   — this pass's redefined "Sprint 4" (UI_UX_DESIGN_PLAN.md §4)
+ * - Department Management: still a placeholder, out of scope for this pass
  */
-export default function AdminDashboardPage() {
+export default async function AdminDashboardPage() {
+  const auth = await requireRole('admin')
+  if (!auth.authorized) {
+    // Friendly redirect for a role that simply isn't admin — RLS is the real
+    // boundary (PRD Section 7.1); the root page re-routes to their own
+    // dashboard based on their actual role.
+    redirect('/')
+  }
+
+  const [staffResult, departmentsResult, levelsResult, ratesResult] = await Promise.all([
+    listStaff(),
+    listDepartments(),
+    listLevels(),
+    listRateReferences(),
+  ])
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">
-          System Administration
-        </h1>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-          Manage staff, levels, rates, and departments
-        </p>
-      </div>
+      <PageHeader title="System Administration" subtitle="Manage staff, levels, rates, and departments" />
 
-      {/* TODO (Sprint 0): Staff Management */}
-      <section className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">
-            Staff Management
-          </h2>
-          {/* TODO: Add Staff button */}
-        </div>
-        <p className="mt-2 text-sm text-gray-500">
-          Staff table will appear here.
+      {!staffResult.success && (
+        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+          Could not load staff: {staffResult.error}
         </p>
+      )}
+      {!departmentsResult.success && (
+        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+          Could not load departments: {departmentsResult.error}
+        </p>
+      )}
+      {!levelsResult.success && (
+        <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+          Could not load levels: {levelsResult.error}
+        </p>
+      )}
+
+      <section className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
+        <StaffManagement
+          staff={(staffResult.data ?? []) as StaffWithDetails[]}
+          departments={(departmentsResult.data ?? []) as Department[]}
+          levels={(levelsResult.data ?? []) as Level[]}
+        />
       </section>
 
-      {/* TODO (Sprint 0): Level Configuration */}
       <section className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">
-          Level Configuration
-        </h2>
-        <p className="mt-2 text-sm text-gray-500">
-          Coverage percentages and flight class mappings.
-        </p>
+        <LevelManagement levels={(levelsResult.data ?? []) as Level[]} />
       </section>
 
-      {/* TODO (Sprint 0): Rate Management */}
       <section className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">
-          Rate Management
-        </h2>
-        <p className="mt-2 text-sm text-gray-500">
-          Master rate table and override log.
-        </p>
+        <RateManagement
+          rates={(ratesResult.data ?? []) as RateReferenceWithLevel[]}
+          levels={(levelsResult.data ?? []) as Level[]}
+        />
       </section>
 
-      {/* TODO (Sprint 0): Department Management */}
+      {/* Department Management — out of scope for this pass, see UI_UX_DESIGN_PLAN.md §3.5 */}
       <section className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">
           Department Management
         </h2>
         <p className="mt-2 text-sm text-gray-500">
-          Departments and annual budget ceilings.
+          Departments and annual budget ceilings. Not built this pass — see UI_UX_DESIGN_PLAN.md §3.5.
         </p>
       </section>
     </div>

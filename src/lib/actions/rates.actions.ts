@@ -61,7 +61,13 @@ export async function addRateReference(input: RateReferenceInput): Promise<Actio
   if (!parsed.success) return { success: false, error: parsed.error.message }
 
   const supabase = await createClient()
-  const { error } = await supabase.from('rate_reference').insert(parsed.data)
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const { error } = await supabase
+    .from('rate_reference')
+    .insert({ ...parsed.data, updated_at: new Date().toISOString(), updated_by: user?.id ?? null })
 
   if (error) {
     return {
@@ -86,12 +92,44 @@ export async function updateRateReference(input: UpdateRateReferenceInput): Prom
 
   const { id, ...fields } = parsed.data
   const supabase = await createClient()
-  const { error } = await supabase.from('rate_reference').update(fields).eq('id', id)
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const { error } = await supabase
+    .from('rate_reference')
+    .update({ ...fields, updated_at: new Date().toISOString(), updated_by: user?.id ?? null })
+    .eq('id', id)
 
   if (error) return { success: false, error: error.message }
 
   revalidatePath('/admin')
+  revalidatePath('/hr')
   return { success: true }
+}
+
+// ============================================================
+// Flight Price Reference — "Sprint 4" (redefined), see UI_UX_DESIGN_PLAN.md §4
+// ============================================================
+
+/**
+ * All tracked flight prices (rows with a non-null flight_estimate),
+ * grouped domestic/international, newest-updated first within each group.
+ * Used by the Admin "Flight Price Reference" panel and the HR dashboard's
+ * always-visible reference widget.
+ */
+export async function listFlightPriceReference() {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('rate_reference')
+    .select('*, level:levels(name)')
+    .not('flight_estimate', 'is', null)
+    .order('route_type', { ascending: true })
+    .order('updated_at', { ascending: false })
+
+  if (error) return { success: false, error: error.message, data: [] }
+  return { success: true, data }
 }
 
 // ============================================================
@@ -168,12 +206,18 @@ export async function promoteOverrideToMaster(overrideId: string): Promise<Actio
     return { success: false, error: 'Could not determine the staff level for this request' }
   }
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
   const { error: upsertError } = await supabase.from('rate_reference').upsert(
     {
       destination: request.destination,
       level_id: staffMember.level_id,
       mode: request.mode,
       [targetColumn]: override.overridden_value,
+      updated_at: new Date().toISOString(),
+      updated_by: user?.id ?? null,
     },
     { onConflict: 'destination,level_id,mode' }
   )
@@ -181,6 +225,7 @@ export async function promoteOverrideToMaster(overrideId: string): Promise<Actio
   if (upsertError) return { success: false, error: upsertError.message }
 
   revalidatePath('/admin')
+  revalidatePath('/hr')
   return { success: true }
 }
 

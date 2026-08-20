@@ -70,15 +70,21 @@ export interface Staff {
   created_at: string
 }
 
+/** Domestic (within Nigeria) vs international — drives Flight Price Reference grouping. */
+export type RouteType = 'domestic' | 'international'
+
 export interface RateReference {
   id: string
   destination: string
   level_id: string | null
   mode: string | null
+  route_type: RouteType
   accommodation_rate: number | null
   per_diem_rate: number | null
   flight_estimate: number | null
   airport_taxi: number | null
+  updated_at: string | null
+  updated_by: string | null
 }
 
 export interface RateOverride {
@@ -190,6 +196,35 @@ export interface TravelRequestForMD extends TravelRequest {
     level: Pick<Level, 'name' | 'coverage_percent'> | null
   }) | null
   approvals: ApprovalTrailEntry[] | null
+}
+
+/**
+ * Travel request shape returned by `getPendingHRRequests()` — staff identity
+ * nested with department + level (coverage %, needed for the live total),
+ * plus two enrichments computed server-side so the review screen doesn't
+ * need extra client round-trips: PRD Section 3.2's overlap flag and
+ * resubmission context.
+ */
+export interface TravelRequestForHR extends TravelRequest {
+  staff: (Pick<Staff, 'first_name' | 'surname' | 'email'> & {
+    department: Pick<Department, 'name'> | null
+    level: Pick<Level, 'id' | 'name' | 'coverage_percent'> | null
+  }) | null
+  /** Other active (pending_hr/pending_md/approved) requests by the same staff member whose dates overlap this one. */
+  overlaps: Pick<TravelRequest, 'id' | 'destination' | 'depart_date' | 'return_date'>[]
+  /** Latest HR/MD rejection reason from the request this one supersedes, if it's a resubmission. */
+  previousRejectionReason: string | null
+}
+
+/** Result of `getRateSuggestionForRequest()` — mirrors the 4 promotable allowance fields (PRD 3.4). */
+export interface RateSuggestionResult {
+  accommodation: number | null
+  per_diem: number | null
+  allowance_flight: number | null
+  allowance_taxi: number | null
+  coveragePercent: number | null
+  /** When the suggested flight_estimate was last touched — null if there's no flight price on file. */
+  flightUpdatedAt: string | null
 }
 
 /** Rate override with the HR staff member's name resolved (Admin audit log) */

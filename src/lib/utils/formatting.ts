@@ -108,6 +108,37 @@ export function formatDateTime(dateString: string): string {
 }
 
 /**
+ * Human-readable staleness label for a `rate_reference.updated_at` value —
+ * drives the Flight Price Reference "Updated N days ago" note (PRD 3.2 /
+ * UI_UX_DESIGN_PLAN.md §4). Null means it's never been touched since the
+ * original seed.
+ */
+export function formatStaleness(updatedAt: string | null): string {
+  if (!updatedAt) return 'Never updated'
+  const days = Math.floor((Date.now() - new Date(updatedAt).getTime()) / 86_400_000)
+  if (days <= 0) return 'Updated today'
+  if (days === 1) return 'Updated yesterday'
+  return `Updated ${days} days ago`
+}
+
+/** True once a reference price is old enough that HR should double-check it before trusting it. */
+export function isStale(updatedAt: string | null, thresholdDays = 30): boolean {
+  if (!updatedAt) return true
+  const days = (Date.now() - new Date(updatedAt).getTime()) / 86_400_000
+  return days > thresholdDays
+}
+
+/**
+ * Cosmetic display label for a travel request, e.g. "TRQ-2026-A1B2C3".
+ * Purely presentational — nothing downstream depends on it being sequential,
+ * it's derived from the submission year + a slice of the UUID.
+ */
+export function formatRequestId(row: { id: string; submitted_at: string }): string {
+  const year = new Date(row.submitted_at).getFullYear()
+  return `TRQ-${year}-${row.id.slice(0, 6).toUpperCase()}`
+}
+
+/**
  * Check if two date ranges overlap.
  * Used by the Date-Overlap Warning (PRD Section 3.1).
  */

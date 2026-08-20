@@ -10,9 +10,9 @@
 
 import { useMemo, useState } from 'react'
 import { mdApproveReject } from '@/lib/actions/requests.actions'
-import { REQUEST_STATUS_COLORS, REQUEST_STATUS_LABELS } from '@/lib/utils/constants'
+import { StatusBadge } from '@/components/ui/status-badge'
 import { formatDate, formatUSD, usdToNgn } from '@/lib/utils/formatting'
-import type { RequestStatus, TravelRequestForMD } from '@/types/database'
+import type { TravelRequestForMD } from '@/types/database'
 import { useRouter } from 'next/navigation'
 
 type SortKey = 'cost_desc' | 'earliest' | 'department'
@@ -54,14 +54,6 @@ function decisionReason(row: TravelRequestForMD): string | null {
     (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
   )[0]
   return latest?.reason ?? null
-}
-
-function StatusBadge({ status }: { status: RequestStatus }) {
-  return (
-    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${REQUEST_STATUS_COLORS[status]}`}>
-      {REQUEST_STATUS_LABELS[status]}
-    </span>
-  )
 }
 
 function CostBreakdown({ row }: { row: TravelRequestForMD }) {

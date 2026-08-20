@@ -131,6 +131,29 @@ export async function deactivateStaff(staffId: string): Promise<ActionResult> {
 }
 
 /**
+ * Get the signed-in user's own staff record, with department/level resolved.
+ * Used by /staff/profile — self-service, any authenticated staff member can
+ * read their own row (RLS: "Staff can view own record").
+ */
+export async function getMyProfile() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) return { success: false, error: 'Not authenticated', data: null }
+
+  const { data, error } = await supabase
+    .from('staff')
+    .select('*, department:departments(*), level:levels(*)')
+    .eq('id', user.id)
+    .single()
+
+  if (error) return { success: false, error: error.message, data: null }
+  return { success: true, data }
+}
+
+/**
  * List all staff members with department and level details.
  * Used by the Admin Dashboard staff management table.
  */

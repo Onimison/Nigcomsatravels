@@ -64,6 +64,16 @@ export const hrReviewSchema = z.object({
 })
 
 /**
+ * Schema for HR rejecting a request back to the submitting staff member.
+ * Unlike MD, HR has no "final" rejection — a request HR sends back is
+ * always resubmittable (PRD Section 5.3/5.4).
+ */
+export const hrRejectSchema = z.object({
+  request_id: z.string().uuid(),
+  reason: z.string().min(1, 'A reason is required when rejecting a request').max(2000),
+})
+
+/**
  * Schema for HR/MD approval or rejection action.
  * PRD Section 5.4: Rejection reason is mandatory (also enforced at DB level).
  */
@@ -85,4 +95,5 @@ export const approvalActionSchema = z
 // Inferred types for use in actions and forms
 export type CreateRequestInput = z.infer<typeof createRequestSchema>
 export type HRReviewInput = z.infer<typeof hrReviewSchema>
+export type HRRejectInput = z.infer<typeof hrRejectSchema>
 export type ApprovalActionInput = z.infer<typeof approvalActionSchema>
