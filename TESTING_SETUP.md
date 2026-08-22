@@ -47,6 +47,65 @@ Edit the `ROSTER` array at the top of `scripts/seed-test-accounts.mjs` first —
 
 Either way, the login mechanism is the same for everyone — OTP to their email (PRD §2.1). No separate "test mode" login.
 
+## 4b. Super users — one login per role, one inbox
+
+Roles in this app are mutually exclusive: `staff.role` is a single value with a
+CHECK constraint (`staff | hr | md | admin`), and the sidebar, dashboard routing
+and every Server Action key off it. So there is no one account that can see every
+screen — "test every inch" means holding four accounts and logging between them.
+
+`scripts/seed-superusers.mjs` builds that set using Gmail plus-addressing, so all
+four codes arrive in one inbox:
+
+```bash
+npm run seed:superusers          # or: node --env-file=.env.local scripts/seed-superusers.mjs
+npm run seed:superusers -- --dry-run   # print the table, write nothing
+```
+
+Seeded (as of this pass — all eight exist and are active):
+
+| Login email | Role | Department | Level |
+|---|---|---|---|
+| `bashironimison+staff@gmail.com` | staff | Engineering | Manager |
+| `bashironimison+hr@gmail.com` | hr | Human Resources | Manager |
+| `bashironimison+md@gmail.com` | md | Management | Executive Director |
+| `bashironimison+admin@gmail.com` | admin | System Admin Dept | Director |
+| `cpdokoye7+staff@gmail.com` | staff | Engineering | Manager |
+| `cpdokoye7+hr@gmail.com` | hr | Human Resources | Manager |
+| `cpdokoye7+md@gmail.com` | md | Management | Executive Director |
+| `cpdokoye7+admin@gmail.com` | admin | System Admin Dept | Director |
+
+Two sets means two people can run a full staff → HR → MD chain in parallel
+without fighting over one session.
+
+Notes on the choices:
+
+- **Manager for the staff/HR testers** — `rate_reference` is only seeded for
+  some levels; Manager and General Manager have the widest coverage (Lagos,
+  Abuja, London, Dubai), so the estimator and HR's "Suggest Standard Rates" have
+  numbers to find. A Junior Staff tester only gets Lagos and Abuja.
+- **Executive Director for MD** — 100% coverage, so MD-side totals aren't
+  quietly scaled down.
+- **Re-running is safe and repairs drift.** Unlike `seed-test-accounts.mjs`
+  (which skips anyone who exists), this one corrects an existing row's
+  role/department/level and flips `active` back to true — so after you
+  deactivate a tester in step 5.4, `npm run seed:superusers` puts them back.
+- Emails are stored lowercase because `sendOtpSchema` lowercases input before
+  the `staff` lookup (`src/lib/validations/auth.schema.ts`). Don't hand-insert a
+  mixed-case address — login won't find it.
+- The plain (non-plus) `bashironimison@gmail.com` and `cpdokoye7@gmail.com`
+  accounts still exist from earlier testing, as `admin` and `md`. They're
+  untouched; ignore them or reuse them, but the plus set is the self-describing one.
+
+**Before this is usable, confirm OTP email actually arrives.** Supabase's
+built-in email sender is rate-limited to a couple of messages per hour
+project-wide and, on some projects, only delivers to team members — with eight
+accounts you will hit that ceiling fast. A `signInWithOtp` call to
+`bashironimison+staff@gmail.com` was accepted by the API during setup, but the
+API accepting a send is not proof of delivery. If codes don't land, configure
+custom SMTP in the Supabase dashboard (`IMPLEMENTATION_PLAN.md` §2.3) before the
+test pass rather than during it.
+
 ## 5. Suggested test pass, once the roster is in
 
 1. As a staff tester: submit a request, confirm the pre-submit estimate and overlap warning behave, resubmit after a rejection.
