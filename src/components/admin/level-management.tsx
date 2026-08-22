@@ -52,7 +52,7 @@ function AddLevelForm({ onDone }: { onDone: () => void }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-800/50"
+      className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-gray-100 bg-gray-50 p-4"
     >
       <Input
         label="Grade Name"
@@ -78,7 +78,7 @@ function AddLevelForm({ onDone }: { onDone: () => void }) {
         placeholder="economy"
         className="w-36"
       />
-      {error && <p className="text-sm text-red-600 dark:text-red-400" role="alert">{error}</p>}
+      {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
       <div className="flex gap-2">
         <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? 'Adding…' : 'Add Level'}
@@ -123,31 +123,35 @@ function LevelRow({ level }: { level: Level }) {
   }
 
   return (
-    <tr className="border-b border-gray-100 last:border-0 dark:border-gray-800">
-      <td className="whitespace-nowrap py-3 pr-4 font-medium text-gray-900 dark:text-gray-50">{level.name}</td>
+    <tr className={`border-b last:border-0 ${editing ? 'border-blue-100 bg-blue-50/60' : 'border-gray-100'}`}>
+      <td className="whitespace-nowrap py-3 pr-4 font-medium text-gray-900">{level.name}</td>
       <td className="whitespace-nowrap py-3 pr-4">
         {editing ? (
-          <input
-            type="number"
-            min={0}
-            max={100}
-            value={coverage}
-            onChange={(e) => setCoverage(e.target.value)}
-            className="w-20 rounded-lg border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800"
-          />
+          <div className="w-20">
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              value={coverage}
+              onChange={(e) => setCoverage(e.target.value)}
+              className="px-2 py-1"
+            />
+          </div>
         ) : (
-          <span className="text-sm text-gray-700 dark:text-gray-300">{level.coverage_percent}%</span>
+          <span className="text-sm text-gray-700">{level.coverage_percent}%</span>
         )}
       </td>
       <td className="whitespace-nowrap py-3 pr-4">
         {editing ? (
-          <input
-            value={flightClass}
-            onChange={(e) => setFlightClass(e.target.value)}
-            className="w-28 rounded-lg border border-gray-300 px-2 py-1 text-sm capitalize focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800"
-          />
+          <div className="w-28">
+            <Input
+              value={flightClass}
+              onChange={(e) => setFlightClass(e.target.value)}
+              className="px-2 py-1 capitalize"
+            />
+          </div>
         ) : (
-          <span className="text-sm capitalize text-gray-700 dark:text-gray-300">{level.flight_class ?? '—'}</span>
+          <span className="text-sm capitalize text-gray-700">{level.flight_class ?? '—'}</span>
         )}
       </td>
       <td className="whitespace-nowrap py-3 text-right">
@@ -178,7 +182,7 @@ export function LevelManagement({ levels }: { levels: Level[] }) {
     <div id="levels">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">Level Configuration</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Level Configuration</h2>
           <p className="mt-1 text-sm text-gray-500">
             Coverage percentage and flight class per grade — this is the demo travel policy (see TRAVEL_POLICY_DEMO.md).
           </p>
@@ -194,7 +198,7 @@ export function LevelManagement({ levels }: { levels: Level[] }) {
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-gray-200 text-xs font-medium uppercase tracking-wide text-gray-400 dark:border-gray-800">
+              <tr className="border-b border-gray-200 text-xs font-medium uppercase tracking-wide text-gray-400">
                 <th className="py-2 pr-4">Grade</th>
                 <th className="py-2 pr-4">Coverage</th>
                 <th className="py-2 pr-4">Flight Class</th>

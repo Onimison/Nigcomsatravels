@@ -1,16 +1,17 @@
 /**
- * Shared Input — visual reference: frontend/components/ui/input.tsx,
- * light-mode only, per globals.css.
+ * Shared Textarea — same visual contract as Input, for the multi-line note/
+ * reason fields hand-rolled near-identically in travel-request-form.tsx,
+ * hr-dashboard.tsx, and md-dashboard.tsx.
  */
 
-import type { InputHTMLAttributes } from 'react'
+import type { TextareaHTMLAttributes } from 'react'
 
-interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string
   error?: string
 }
 
-export function Input({ label, error, id, className = '', ...props }: InputProps) {
+export function Textarea({ label, error, id, className = '', ...props }: TextareaProps) {
   return (
     <div className="flex flex-col gap-1.5">
       {label && (
@@ -18,7 +19,7 @@ export function Input({ label, error, id, className = '', ...props }: InputProps
           {label}
         </label>
       )}
-      <input
+      <textarea
         id={id}
         aria-invalid={error ? true : undefined}
         className={`w-full rounded-lg border px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 ${

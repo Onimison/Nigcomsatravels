@@ -8,13 +8,21 @@
 
 import { useRouter } from 'next/navigation'
 import { TravelRequestForm, type ResubmitTarget } from './travel-request-form'
+import type { AirportOption } from '@/types/database'
 
-export function RequestFormClient({ resubmitTarget }: { resubmitTarget: ResubmitTarget | null }) {
+export function RequestFormClient({
+  airports,
+  resubmitTarget,
+}: {
+  airports: AirportOption[]
+  resubmitTarget: ResubmitTarget | null
+}) {
   const router = useRouter()
 
   return (
     <TravelRequestForm
       key={resubmitTarget?.id ?? 'new'}
+      airports={airports}
       resubmitTarget={resubmitTarget}
       onCancelResubmit={() => router.push('/staff/request')}
     />

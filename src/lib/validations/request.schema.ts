@@ -16,6 +16,17 @@ export const createRequestSchema = z
       .string()
       .min(1, 'Origin is required')
       .max(200, 'Origin is too long'),
+    /**
+     * Airport picked in the dropdown, when the endpoint is one of the seeded
+     * cities (20260822160000_airports.sql). Optional because the form keeps an
+     * "Other — not listed" escape hatch: road trips and unusual destinations
+     * must stay submittable, and a null here just means the route can't be
+     * used as a machine key. The server re-reads these to derive the canonical
+     * `destination`/`origin` text, so a client can't put the FK and the text
+     * out of step.
+     */
+    destination_airport_id: z.string().uuid().nullable().optional(),
+    origin_airport_id: z.string().uuid().nullable().optional(),
     mode: z.enum(['air', 'road'], {
       message: 'Please select a travel mode',
     }),

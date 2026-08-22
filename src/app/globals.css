@@ -1,8 +1,20 @@
 @import "tailwindcss";
 
+/*
+ * Light mode only, everywhere — no theme toggle in this app, and no OS
+ * dark-mode passthrough either. Tailwind's `dark:` variant defaults to
+ * `@media (prefers-color-scheme: dark)`, which silently flipped the whole
+ * app to dark for any visitor whose OS was in dark mode. Redefining the
+ * variant to a class that's never applied means every `dark:` utility
+ * already written across the app (and any added later) simply never
+ * matches, without having to strip `dark:` classes from every component.
+ */
+@custom-variant dark (&:is(.force-dark &));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  color-scheme: light;
 }
 
 @theme inline {
@@ -12,15 +24,8 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }

@@ -12,15 +12,13 @@
 
 Placeholder emails for now (per your call — swap for real addresses before anyone actually tries to log in):
 
-| Name | Email (placeholder) | Role | Department | Level |
+| Name | Email | Role | Department | Level |
 |---|---|---|---|---|
 | Intern One | `bashironimison@gmail.com` | staff | Engineering | Junior Staff |
-| Intern Two | `intern2@nigcomsat.example` | staff | Engineering | Junior Staff |
-| Intern Three | `intern3@nigcomsat.example` | staff | Operations | Senior Staff |
-| Intern Four | `intern4@nigcomsat.example` | staff | Communications | Junior Staff |
-| Intern Five | `intern5@nigcomsat.example` | staff | Finance | Senior Staff |
-| Test HR | `godblessbashir@gmail.com` | hr | Human Resources | Manager |
-| Test MD | `test-md@nigcomsat.example` | md | Management | Executive Director |
+| Test Staff | `unnazitere@gmail.com` | staff | Engineering | Junior Staff |
+| Test HR | `borisrael.ng@gmail.com` | hr | Human Resources | Manager |
+| Test MD | `cpdokoye7@gmail.com` | md | Management | Executive Director |
+| HR Backup | `godblessbashir@gmail.com` | hr | Human Resources | Manager |
 
 You (as the person who bootstraps the first admin, see §3) can also just be one of the interns' roles, or add yourself as an 8th row — whatever matches how you actually want to divide the 5 interns + yourself.
 

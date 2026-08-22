@@ -32,11 +32,21 @@ export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
 // Status Color Mappings (for UI badges)
 // ============================================================
 
+/**
+ * Semantic palette: 4 fixed roles, not 5+ ad hoc hues.
+ *   attention (amber) — pending review, returned-for-revision (recoverable),
+ *     resubmission/overlap warnings, stale data
+ *   info (blue)        — in-flight, no action needed from the viewer yet
+ *   error (red)        — final/hard rejection only
+ *   success (green)    — approved
+ * Reuse these class strings anywhere else in the UI that needs the same
+ * meaning (banners, flags) instead of picking a color ad hoc.
+ */
 export const REQUEST_STATUS_COLORS: Record<RequestStatus, string> = {
-  pending_hr: 'bg-yellow-100 text-yellow-800',
+  pending_hr: 'bg-amber-100 text-amber-800',
   pending_md: 'bg-blue-100 text-blue-800',
-  hr_rejected: 'bg-orange-100 text-orange-800',
-  md_rejected: 'bg-orange-100 text-orange-800',
+  hr_rejected: 'bg-amber-100 text-amber-800',
+  md_rejected: 'bg-amber-100 text-amber-800',
   rejected_final: 'bg-red-100 text-red-800',
   approved: 'bg-green-100 text-green-800',
 } as const

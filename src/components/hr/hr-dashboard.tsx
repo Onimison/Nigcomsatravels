@@ -6,16 +6,18 @@
  * Renders the pending-HR-review queue (filterable) plus a read-only
  * "Recently Processed" history, built from getPendingHRRequests() /
  * getHRHistory() (both fetched server-side in page.tsx).
- *
- * Brought to dark:-mode parity with the rest of the app in the UI/UX pass
- * (UI_UX_DESIGN_PLAN.md) — previously light-only, which read as broken next
- * to the now dark:-aware shared dashboard shell.
  */
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { hrReviewRequest, hrRejectRequest, getRateSuggestionForRequest } from '@/lib/actions/requests.actions'
 import { StatusBadge } from '@/components/ui/status-badge'
+import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Select } from '@/components/ui/select'
+import { Button } from '@/components/ui/button'
+import { CashIcon } from '@/components/ui/icons'
+import { FlightLookupCard } from '@/components/hr/flight-lookup-card'
 import {
   formatDate,
   formatUSD,
@@ -177,10 +179,10 @@ function ReviewCard({ row }: { row: TravelRequestForHR }) {
   }
 
   return (
-    <div className="space-y-4 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+    <div className="space-y-5 rounded-xl border border-gray-200 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <p className="font-medium text-gray-900 dark:text-gray-50">
+          <p className="font-medium text-gray-900">
             {row.origin} → {row.destination}
           </p>
           <p className="mt-0.5 text-xs text-gray-500">
@@ -194,14 +196,14 @@ function ReviewCard({ row }: { row: TravelRequestForHR }) {
       </div>
 
       {row.previousRejectionReason && (
-        <div className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800 dark:border-orange-900/50 dark:bg-orange-950/40 dark:text-orange-300">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           <p className="font-medium">This is a resubmission.</p>
           <p className="mt-0.5">Previously returned because: “{row.previousRejectionReason}”</p>
         </div>
       )}
 
       {row.overlaps.length > 0 && (
-        <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3 text-sm text-yellow-800 dark:border-yellow-900/50 dark:bg-yellow-950/40 dark:text-yellow-300">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
           Overlap warning: {staffName(row)} has {row.overlaps.length === 1 ? 'another active trip' : 'other active trips'} that
           overlap{row.overlaps.length === 1 ? 's' : ''} these dates —{' '}
           {row.overlaps.map((o, i) => (
@@ -216,57 +218,71 @@ function ReviewCard({ row }: { row: TravelRequestForHR }) {
 
       <div>
         <p className="text-xs font-medium uppercase tracking-wide text-gray-400">Reason for Travel</p>
-        <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">{row.reason_for_travel || '—'}</p>
+        <p className="mt-1 text-sm text-gray-700">{row.reason_for_travel || '—'}</p>
       </div>
 
-      <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-800/50">
+      <div className="rounded-lg border border-gray-100 bg-gray-50 p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Allowances</p>
-          <button
-            type="button"
-            onClick={handleSuggestRates}
-            disabled={suggestion.loading}
-            className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-blue-900 dark:bg-transparent dark:text-blue-400 dark:hover:bg-blue-950/40"
-          >
+          <div className="flex items-center gap-2">
+            <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
+              <CashIcon className="h-3.5 w-3.5" />
+            </span>
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Allowances (USD)</p>
+          </div>
+          <Button variant="outline" onClick={handleSuggestRates} disabled={suggestion.loading}>
             {suggestion.loading ? 'Looking up rates…' : 'Suggest Standard Rates'}
-          </button>
+          </Button>
         </div>
 
         {suggestion.checked && suggestion.message && (
           <p className="mt-2 text-xs text-blue-700">{suggestion.message}</p>
         )}
 
+        {/* Air trips only — there's no fare to look up for a road journey. */}
+        {row.mode === 'air' && (
+          <div className="mt-3">
+            <FlightLookupCard
+              originCode={row.origin_airport?.iata_code}
+              // Canonical city when the airport resolved, raw text otherwise —
+              // this is what lets the same-endpoint guard catch a trip where one
+              // side resolved to a code and the other didn't.
+              originCity={row.origin_airport?.city ?? row.origin}
+              destinationCode={row.destination_airport?.iata_code}
+              destinationCity={row.destination_airport?.city ?? row.destination}
+              departDate={row.depart_date}
+              returnDate={row.return_date}
+              cabin={row.staff?.level?.flight_class}
+            />
+          </div>
+        )}
+
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {ALLOWANCE_FIELDS.map(({ key, label }) => (
-            <div key={key}>
-              <label className="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400" htmlFor={`${key}-${row.id}`}>
-                {label} (USD)
-              </label>
-              <input
-                id={`${key}-${row.id}`}
-                type="number"
-                min={0}
-                step="0.01"
-                value={allowances[key]}
-                onChange={(e) => updateField(key, e.target.value)}
-                placeholder="0.00"
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-50"
-              />
-            </div>
+            <Input
+              key={key}
+              id={`${key}-${row.id}`}
+              label={label}
+              type="number"
+              min={0}
+              step="0.01"
+              value={allowances[key]}
+              onChange={(e) => updateField(key, e.target.value)}
+              placeholder="0.00"
+            />
           ))}
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-3 dark:border-gray-800">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-3">
           <span className="text-xs text-gray-500">Total Raw Allowance: {formatUSD(rawTotal)}</span>
           <div className="text-right">
             <p className="text-xs text-gray-500">Final Total ({coveragePercent}% coverage)</p>
-            <p className="text-base font-semibold text-gray-900 dark:text-gray-50">{formatUSD(finalCost)}</p>
+            <p className="text-base font-semibold text-gray-900">{formatUSD(finalCost)}</p>
           </div>
         </div>
       </div>
 
-      <div className="space-y-2 border-t border-gray-100 pt-3 dark:border-gray-800">
-        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300" htmlFor={`note-${row.id}`}>
+      <div className="space-y-2 border-t border-gray-100 pt-3">
+        <label className="block text-xs font-medium text-gray-700" htmlFor={`note-${row.id}`}>
           Note to MD (optional when forwarding, required to reject)
         </label>
         <textarea
@@ -274,30 +290,20 @@ function ReviewCard({ row }: { row: TravelRequestForHR }) {
           rows={2}
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-50"
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
         />
 
         {error && (
-          <p className="text-sm text-red-600 dark:text-red-400" role="alert">{error}</p>
+          <p className="text-sm text-red-600" role="alert">{error}</p>
         )}
 
         <div className="flex flex-wrap gap-2 pt-1">
-          <button
-            type="button"
-            disabled={pendingAction !== null}
-            onClick={handleForward}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-          >
+          <Button variant="primary" disabled={pendingAction !== null} onClick={handleForward}>
             {pendingAction === 'forward' ? 'Forwarding…' : 'Forward to MD'}
-          </button>
-          <button
-            type="button"
-            disabled={pendingAction !== null}
-            onClick={handleReject}
-            className="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40"
-          >
+          </Button>
+          <Button variant="danger" disabled={pendingAction !== null} onClick={handleReject}>
             {pendingAction === 'reject' ? 'Rejecting…' : 'Reject'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -307,10 +313,10 @@ function ReviewCard({ row }: { row: TravelRequestForHR }) {
 function HistoryRow({ row }: { row: TravelRequestForMD }) {
   const reason = decisionReason(row)
   return (
-    <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+    <div className="rounded-lg border border-gray-200 p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <p className="font-medium text-gray-900 dark:text-gray-50">
+          <p className="font-medium text-gray-900">
             {row.origin} → {row.destination}
           </p>
           <p className="mt-0.5 text-xs text-gray-500">
@@ -322,7 +328,7 @@ function HistoryRow({ row }: { row: TravelRequestForMD }) {
         </div>
         <div className="text-right">
           <StatusBadge status={row.status} />
-          <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-50">
+          <p className="mt-1 text-sm font-semibold text-gray-900">
             {row.final_cost != null ? formatUSD(row.final_cost) : '—'}
           </p>
           {row.final_cost != null && row.locked_fx_rate != null && (
@@ -337,7 +343,7 @@ function HistoryRow({ row }: { row: TravelRequestForMD }) {
         </div>
       </div>
       {reason && row.status === 'hr_rejected' && (
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+        <p className="mt-2 text-sm text-gray-600">
           Reason: <span className="italic">“{reason}”</span>
         </p>
       )}
@@ -380,71 +386,69 @@ export function HRDashboard({
     })
   }, [pending, department, destination, sortKey])
 
-  const selectClass =
-    'rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-50'
+  const filterRow = (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="w-44">
+        <Select
+          value={department}
+          onChange={(e) => setDepartment(e.target.value)}
+          aria-label="Filter by department"
+        >
+          <option value="all">All departments</option>
+          {departments.map((d) => (
+            <option key={d} value={d}>{d}</option>
+          ))}
+        </Select>
+      </div>
+      <div className="w-48">
+        <Input
+          value={destination}
+          onChange={(e) => setDestination(e.target.value)}
+          placeholder="Filter by destination"
+          aria-label="Filter by destination"
+        />
+      </div>
+      <div className="w-56">
+        <Select
+          value={sortKey}
+          onChange={(e) => setSortKey(e.target.value as SortKey)}
+          aria-label="Sort requests"
+        >
+          <option value="earliest">Sort: Earliest Departure</option>
+          <option value="department">Sort: Department</option>
+          <option value="destination">Sort: Destination</option>
+        </Select>
+      </div>
+    </div>
+  )
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">Awaiting Review ({visible.length})</h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <select
-              value={department}
-              onChange={(e) => setDepartment(e.target.value)}
-              className={selectClass}
-              aria-label="Filter by department"
-            >
-              <option value="all">All departments</option>
-              {departments.map((d) => (
-                <option key={d} value={d}>{d}</option>
-              ))}
-            </select>
-            <input
-              value={destination}
-              onChange={(e) => setDestination(e.target.value)}
-              placeholder="Filter by destination"
-              className={selectClass}
-              aria-label="Filter by destination"
-            />
-            <select
-              value={sortKey}
-              onChange={(e) => setSortKey(e.target.value as SortKey)}
-              className={selectClass}
-              aria-label="Sort requests"
-            >
-              <option value="earliest">Sort: Earliest Departure</option>
-              <option value="department">Sort: Department</option>
-              <option value="destination">Sort: Destination</option>
-            </select>
-          </div>
-        </div>
-
+      <Card title={`Awaiting Review (${visible.length})`} action={filterRow}>
         {visible.length === 0 ? (
-          <p className="mt-4 text-sm text-gray-500">
+          <p className="text-sm text-gray-500">
             {pending.length === 0 ? 'No requests pending HR review.' : 'No requests match the current filters.'}
           </p>
         ) : (
-          <div className="mt-4 space-y-3">
+          <div className="space-y-3">
             {visible.map((row) => (
               <ReviewCard key={row.id} row={row} />
             ))}
           </div>
         )}
-      </section>
+      </Card>
 
-      <section className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">Recently Processed</h2>
+      <Card title="Recently Processed">
         {history.length === 0 ? (
-          <p className="mt-2 text-sm text-gray-500">Forwarded and rejected requests will appear here.</p>
+          <p className="text-sm text-gray-500">Forwarded and rejected requests will appear here.</p>
         ) : (
-          <div className="mt-4 space-y-3">
+          <div className="space-y-3">
             {history.map((row) => (
               <HistoryRow key={row.id} row={row} />
             ))}
           </div>
         )}
-      </section>
+      </Card>
     </div>
   )
 }

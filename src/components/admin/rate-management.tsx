@@ -16,6 +16,7 @@ import { addRateReference, updateRateReference } from '@/lib/actions/rates.actio
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { AlertTriangleIcon } from '@/components/ui/icons'
 import { formatUSD, formatStaleness, isStale } from '@/lib/utils/formatting'
 import type { Level, RateReferenceWithLevel, RouteType } from '@/types/database'
 
@@ -80,10 +81,7 @@ function AddRateForm({ levels, onDone }: { levels: Level[]; onDone: () => void }
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="mt-4 space-y-4 rounded-lg border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-800/50"
-    >
+    <form onSubmit={handleSubmit} className="mt-4 space-y-4 rounded-lg border border-gray-100 bg-gray-50 p-4">
       <div className="grid gap-3 sm:grid-cols-3">
         <Input
           label="Destination"
@@ -134,7 +132,7 @@ function AddRateForm({ levels, onDone }: { levels: Level[]; onDone: () => void }
         ))}
       </div>
 
-      {error && <p className="text-sm text-red-600 dark:text-red-400" role="alert">{error}</p>}
+      {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
 
       <div className="flex gap-2">
         <Button type="submit" disabled={isSubmitting}>
@@ -182,22 +180,31 @@ function RateRow({ row }: { row: RateReferenceWithLevel }) {
   const stale = isStale(row.updated_at)
 
   return (
-    <tr className="border-b border-gray-100 last:border-0 dark:border-gray-800">
+    <tr className={`border-b last:border-0 ${editing ? 'border-blue-100 bg-blue-50/60' : 'border-gray-100'}`}>
       <td className="whitespace-nowrap py-3 pr-4">
-        <p className="font-medium text-gray-900 dark:text-gray-50">{row.destination}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="font-medium text-gray-900">{row.destination}</p>
+          {stale && (
+            <span title={formatStaleness(row.updated_at)} className="text-amber-600">
+              <AlertTriangleIcon className="h-3.5 w-3.5" />
+            </span>
+          )}
+        </div>
         <p className="text-xs capitalize text-gray-500">{row.level?.name ?? '—'} · {row.mode}</p>
       </td>
       {NUM_FIELDS.map(({ key }) => (
-        <td key={key} className="whitespace-nowrap py-3 pr-4 text-sm text-gray-700 dark:text-gray-300">
+        <td key={key} className="whitespace-nowrap py-3 pr-4 text-sm text-gray-700">
           {editing ? (
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              value={values[key]}
-              onChange={(e) => setValues((prev) => ({ ...prev, [key]: e.target.value }))}
-              className="w-24 rounded-lg border border-gray-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-gray-700 dark:bg-gray-800"
-            />
+            <div className="w-24">
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                value={values[key]}
+                onChange={(e) => setValues((prev) => ({ ...prev, [key]: e.target.value }))}
+                className="px-2 py-1"
+              />
+            </div>
           ) : row[key] != null ? (
             formatUSD(Number(row[key]))
           ) : (
@@ -205,11 +212,6 @@ function RateRow({ row }: { row: RateReferenceWithLevel }) {
           )}
         </td>
       ))}
-      <td className="whitespace-nowrap py-3 pr-4 text-xs">
-        <span className={stale ? 'font-medium text-amber-600 dark:text-amber-400' : 'text-gray-400'}>
-          {formatStaleness(row.updated_at)}
-        </span>
-      </td>
       <td className="whitespace-nowrap py-3 text-right">
         {editing ? (
           <div className="flex justify-end gap-2">
@@ -233,7 +235,7 @@ function RateRow({ row }: { row: RateReferenceWithLevel }) {
 function RateGroup({ title, rows }: { title: string; rows: RateReferenceWithLevel[] }) {
   return (
     <div>
-      <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+      <h3 className="text-sm font-semibold text-gray-700">
         {title} <span className="font-normal text-gray-400">({rows.length})</span>
       </h3>
       {rows.length === 0 ? (
@@ -242,12 +244,11 @@ function RateGroup({ title, rows }: { title: string; rows: RateReferenceWithLeve
         <div className="mt-2 overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-gray-200 text-xs font-medium uppercase tracking-wide text-gray-400 dark:border-gray-800">
+              <tr className="border-b border-gray-200 text-xs font-medium uppercase tracking-wide text-gray-400">
                 <th className="py-2 pr-4">Destination / Level / Mode</th>
                 {NUM_FIELDS.map(({ key, label }) => (
                   <th key={key} className="py-2 pr-4">{label}</th>
                 ))}
-                <th className="py-2 pr-4">Freshness</th>
                 <th className="py-2" />
               </tr>
             </thead>
@@ -273,11 +274,11 @@ export function RateManagement({ rates, levels }: { rates: RateReferenceWithLeve
     <div id="rates">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">Flight Price Reference</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Flight Price Reference</h2>
           <p className="mt-1 text-sm text-gray-500">
             Domestic and international flight prices, kept current for HR to reference during review.
             {staleFlightCount > 0 && (
-              <span className="ml-1 font-medium text-amber-600 dark:text-amber-400">
+              <span className="ml-1 font-medium text-amber-600">
                 {staleFlightCount} price{staleFlightCount === 1 ? '' : 's'} haven&rsquo;t been checked in 30+ days.
               </span>
             )}
@@ -289,7 +290,7 @@ export function RateManagement({ rates, levels }: { rates: RateReferenceWithLeve
       </div>
 
       {levels.length === 0 && (
-        <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">Add at least one level before adding rates.</p>
+        <p className="mt-2 text-sm text-amber-600">Add at least one level before adding rates.</p>
       )}
 
       {showAddForm && <AddRateForm levels={levels} onDone={() => setShowAddForm(false)} />}

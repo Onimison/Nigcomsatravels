@@ -35,6 +35,76 @@ export interface ActionResult {
 }
 
 // ============================================================
+// Trip endpoint resolution
+// ============================================================
+
+type SupabaseClient = Awaited<ReturnType<typeof createClient>>
+
+/**
+ * Turns one end of a trip into a (canonical text, airport FK) pair.
+ *
+ * The airport id is re-read server-side rather than trusted alongside the
+ * client's text, so a tampered or stale form can't file a request whose
+ * `destination` says one city and whose `destination_airport_id` points at
+ * another — the text always comes from the row the FK names.
+ *
+ * Falls back to an exact case-insensitive match on the typed text, which is
+ * what lets a request submitted through the "Other — not listed" escape
+ * hatch still pick up a route key when the city does happen to be seeded.
+ * A miss is not an error: the FK stays null and downstream degrades.
+ */
+async function resolveEndpoint(
+  supabase: SupabaseClient,
+  airportId: string | null | undefined,
+  text: string
+): Promise<{ text: string; airportId: string | null }> {
+  if (airportId) {
+    const { data } = await supabase
+      .from('airports')
+      .select('id, city')
+      .eq('id', airportId)
+      .maybeSingle()
+    if (data) return { text: data.city, airportId: data.id }
+  }
+
+  const trimmed = text.trim()
+  if (trimmed) {
+    // No wildcards — ilike here is an exact match that ignores case.
+    const { data } = await supabase
+      .from('airports')
+      .select('id, city')
+      .ilike('city', trimmed)
+      .limit(1)
+      .maybeSingle()
+    if (data) return { text: data.city, airportId: data.id }
+  }
+
+  return { text: trimmed, airportId: null }
+}
+
+/**
+ * Expands validated form input into the columns `travel_requests` actually
+ * stores, resolving both endpoints. Shared by submit and resubmit so the two
+ * paths can't drift on how a destination is recorded.
+ */
+async function resolveTripEndpoints(supabase: SupabaseClient, parsed: CreateRequestInput) {
+  const { destination_airport_id, origin_airport_id, ...rest } = parsed
+
+  const [destination, origin] = await Promise.all([
+    resolveEndpoint(supabase, destination_airport_id, parsed.destination),
+    resolveEndpoint(supabase, origin_airport_id, parsed.origin),
+  ])
+
+  return {
+    ...rest,
+    destination: destination.text,
+    origin: origin.text,
+    destination_airport_id: destination.airportId,
+    origin_airport_id: origin.airportId,
+  }
+}
+
+// ============================================================
 // Staff Actions (PRD Section 3.1)
 // ============================================================
 
@@ -60,7 +130,7 @@ export async function submitRequest(input: CreateRequestInput): Promise<ActionRe
     previous_version_id: null,
     staff_id: user.id,
     status: 'pending_hr',
-    ...parsed.data,
+    ...(await resolveTripEndpoints(supabase, parsed.data)),
   })
 
   if (error) return { success: false, error: error.message }
@@ -116,7 +186,7 @@ export async function resubmitRequest(
     previous_version_id: original.id,
     staff_id: user.id,
     status: 'pending_hr',
-    ...parsed.data,
+    ...(await resolveTripEndpoints(supabase, parsed.data)),
   })
 
   if (insertError) return { success: false, error: insertError.message }
@@ -221,12 +291,17 @@ const MD_REQUEST_SELECT = `*,
  * (needed both for the live coverage-adjusted total and to look up
  * `rate_reference` for "Suggest Standard Rates").
  */
+// The two airport embeds are disambiguated by constraint name because both
+// FKs point at the same table — PostgREST can't infer which is which
+// otherwise (constraints named in 20260822160000_airports.sql).
 const HR_REQUEST_SELECT = `*,
   staff:staff(
     first_name, surname, email,
     department:departments(name),
-    level:levels(id, name, coverage_percent)
-  )`
+    level:levels(id, name, coverage_percent, flight_class)
+  ),
+  origin_airport:airports!travel_requests_origin_airport_fkey(iata_code, city),
+  destination_airport:airports!travel_requests_destination_airport_fkey(iata_code, city)`
 
 /**
  * Get all requests pending HR review, enriched with two things the review
