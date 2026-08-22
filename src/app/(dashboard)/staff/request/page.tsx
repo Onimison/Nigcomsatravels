@@ -1,8 +1,10 @@
 import type { Metadata } from 'next'
 import { getMyRequests } from '@/lib/actions/requests.actions'
+import { listAirports } from '@/lib/actions/airports.actions'
 import { latestReason, type StaffRequestRow } from '@/components/staff/request-card'
 import { RequestFormClient } from '@/components/staff/request-form-client'
 import type { ResubmitTarget } from '@/components/staff/travel-request-form'
+import { PageHeader } from '@/components/ui/page-header'
 
 export const metadata: Metadata = {
   title: 'Request Travel — NIGCOMSAT Travel',
@@ -15,7 +17,7 @@ export default async function RequestTravelPage({
   searchParams: Promise<{ resubmit?: string }>
 }) {
   const { resubmit } = await searchParams
-  const { data } = await getMyRequests()
+  const [{ data }, { data: airports }] = await Promise.all([getMyRequests(), listAirports()])
   const requests = (data ?? []) as StaffRequestRow[]
 
   let resubmitTarget: ResubmitTarget | null = null
@@ -26,6 +28,8 @@ export default async function RequestTravelPage({
         id: row.id,
         destination: row.destination,
         origin: row.origin,
+        destination_airport_id: row.destination_airport_id,
+        origin_airport_id: row.origin_airport_id,
         mode: row.mode,
         days: row.days,
         depart_date: row.depart_date,
@@ -38,17 +42,13 @@ export default async function RequestTravelPage({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">
-          {resubmitTarget ? 'Resubmit Request' : 'Request Travel'}
-        </h1>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-          Fill in your travel details to submit a new request.
-        </p>
-      </div>
+      <PageHeader
+        title={resubmitTarget ? 'Resubmit Request' : 'Request Travel'}
+        subtitle="Fill in your travel details to submit a new request."
+      />
 
-      <section className="max-w-2xl rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
-        <RequestFormClient resubmitTarget={resubmitTarget} />
+      <section className="max-w-2xl rounded-xl border border-gray-200 bg-white p-6">
+        <RequestFormClient airports={airports} resubmitTarget={resubmitTarget} />
       </section>
     </div>
   )

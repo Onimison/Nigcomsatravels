@@ -73,6 +73,25 @@ export interface Staff {
 /** Domestic (within Nigeria) vs international — drives Flight Price Reference grouping. */
 export type RouteType = 'domestic' | 'international'
 
+/**
+ * Controlled vocabulary for trip endpoints (20260822160000_airports.sql).
+ * `route_type` is a generated column derived from `country_code`, so unlike
+ * `RateReference.route_type` it is read-only and can't drift.
+ */
+export interface Airport {
+  id: string
+  iata_code: string
+  city: string
+  name: string
+  country_code: string
+  route_type: RouteType
+  active: boolean
+  created_at: string
+}
+
+/** The subset the request-form dropdown needs — see `listAirports()`. */
+export type AirportOption = Pick<Airport, 'id' | 'iata_code' | 'city' | 'route_type'>
+
 export interface RateReference {
   id: string
   destination: string
@@ -112,6 +131,13 @@ export interface TravelRequest {
   staff_id: string
   destination: string
   origin: string | null
+  /**
+   * Resolved airport for `origin`/`destination` (20260822160000_airports.sql).
+   * Nullable: road trips may have no airport, and older rows may name a city
+   * that isn't seeded. Null means "no route key" — degrade, don't guess.
+   */
+  origin_airport_id: string | null
+  destination_airport_id: string | null
   mode: string | null
   days: number | null
   reason_for_travel: string | null
@@ -208,8 +234,12 @@ export interface TravelRequestForMD extends TravelRequest {
 export interface TravelRequestForHR extends TravelRequest {
   staff: (Pick<Staff, 'first_name' | 'surname' | 'email'> & {
     department: Pick<Department, 'name'> | null
-    level: Pick<Level, 'id' | 'name' | 'coverage_percent'> | null
+    /** `flight_class` drives the cabin in the live-fare lookup link. */
+    level: Pick<Level, 'id' | 'name' | 'coverage_percent' | 'flight_class'> | null
   }) | null
+  /** Joined airports for the route key. Null when the city didn't resolve — see TravelRequest. */
+  origin_airport: Pick<Airport, 'iata_code' | 'city'> | null
+  destination_airport: Pick<Airport, 'iata_code' | 'city'> | null
   /** Other active (pending_hr/pending_md/approved) requests by the same staff member whose dates overlap this one. */
   overlaps: Pick<TravelRequest, 'id' | 'destination' | 'depart_date' | 'return_date'>[]
   /** Latest HR/MD rejection reason from the request this one supersedes, if it's a resubmission. */
