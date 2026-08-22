@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { getMyRequests } from '@/lib/actions/requests.actions'
 import type { StaffRequestRow } from '@/components/staff/request-card'
 import { TravelHistory } from '@/components/staff/travel-history'
+import { PageHeader } from '@/components/ui/page-header'
 
 export const metadata: Metadata = {
   title: 'Travel History — NIGCOMSAT Travel',
@@ -13,12 +14,10 @@ export default async function TravelHistoryPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">Travel History</h1>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-          Every trip you&rsquo;ve requested, including rejected and resubmitted attempts.
-        </p>
-      </div>
+      <PageHeader
+        title="Travel History"
+        subtitle="Every trip you’ve requested, including rejected and resubmitted attempts."
+      />
       <TravelHistory requests={(data ?? []) as StaffRequestRow[]} />
     </div>
   )

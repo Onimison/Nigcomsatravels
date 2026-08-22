@@ -91,7 +91,7 @@ function AddStaffForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="mt-4 space-y-4 rounded-lg border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-800/50"
+      className="mt-4 space-y-4 rounded-lg border border-gray-100 bg-gray-50 p-4"
     >
       <div className="grid gap-3 sm:grid-cols-2">
         <Input
@@ -147,7 +147,7 @@ function AddStaffForm({
       </div>
 
       {error && (
-        <p className="text-sm text-red-600 dark:text-red-400" role="alert">{error}</p>
+        <p className="text-sm text-red-600" role="alert">{error}</p>
       )}
 
       <div className="flex gap-2">
@@ -182,18 +182,18 @@ function StaffRow({ row }: { row: StaffWithDetails }) {
   }
 
   return (
-    <tr className="border-b border-gray-100 last:border-0 dark:border-gray-800">
+    <tr className="border-b border-gray-100 last:border-0">
       <td className="whitespace-nowrap py-3 pr-4">
-        <p className="font-medium text-gray-900 dark:text-gray-50">{staffName(row)}</p>
+        <p className="font-medium text-gray-900">{staffName(row)}</p>
         <p className="text-xs text-gray-500">{row.email}</p>
       </td>
-      <td className="whitespace-nowrap py-3 pr-4 text-sm capitalize text-gray-700 dark:text-gray-300">
+      <td className="whitespace-nowrap py-3 pr-4 text-sm capitalize text-gray-700">
         {row.role}
       </td>
-      <td className="whitespace-nowrap py-3 pr-4 text-sm text-gray-700 dark:text-gray-300">
+      <td className="whitespace-nowrap py-3 pr-4 text-sm text-gray-700">
         {row.department?.name ?? '—'}
       </td>
-      <td className="whitespace-nowrap py-3 pr-4 text-sm text-gray-700 dark:text-gray-300">
+      <td className="whitespace-nowrap py-3 pr-4 text-sm text-gray-700">
         {row.level?.name ?? '—'}
       </td>
       <td className="whitespace-nowrap py-3 pr-4">
@@ -201,7 +201,7 @@ function StaffRow({ row }: { row: StaffWithDetails }) {
           className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
             row.active
               ? 'bg-green-100 text-green-800'
-              : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+              : 'bg-gray-100 text-gray-600'
           }`}
         >
           {row.active ? 'Active' : 'Deactivated'}
@@ -233,14 +233,14 @@ export function StaffManagement({
   return (
     <div>
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">Staff Management</h2>
+        <h2 className="text-lg font-semibold text-gray-900">Staff Management</h2>
         <Button onClick={() => setShowAddForm((v) => !v)} disabled={!canAdd}>
           {showAddForm ? 'Close' : '+ Add Staff'}
         </Button>
       </div>
 
       {!canAdd && (
-        <p className="mt-2 text-sm text-amber-600 dark:text-amber-400">
+        <p className="mt-2 text-sm text-amber-600">
           Add at least one department and level before adding staff.
         </p>
       )}
@@ -255,7 +255,7 @@ export function StaffManagement({
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-gray-200 text-xs font-medium uppercase tracking-wide text-gray-400 dark:border-gray-800">
+              <tr className="border-b border-gray-200 text-xs font-medium uppercase tracking-wide text-gray-400">
                 <th className="py-2 pr-4">Name</th>
                 <th className="py-2 pr-4">Role</th>
                 <th className="py-2 pr-4">Department</th>
