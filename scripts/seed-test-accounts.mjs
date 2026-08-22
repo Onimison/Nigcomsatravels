@@ -23,12 +23,10 @@ import { createClient } from '@supabase/supabase-js'
 // seeded (TRAVEL_POLICY_DEMO.md) — change them per person as needed.
 const ROSTER = [
   { first_name: 'Intern', surname: 'One', email: 'bashironimison@gmail.com', role: 'staff', department: 'Engineering', level: 'Junior Staff' },
-  { first_name: 'Intern', surname: 'Two', email: 'intern2@nigcomsat.example', role: 'staff', department: 'Engineering', level: 'Junior Staff' },
-  { first_name: 'Intern', surname: 'Three', email: 'intern3@nigcomsat.example', role: 'staff', department: 'Operations', level: 'Senior Staff' },
-  { first_name: 'Intern', surname: 'Four', email: 'intern4@nigcomsat.example', role: 'staff', department: 'Communications', level: 'Junior Staff' },
-  { first_name: 'Intern', surname: 'Five', email: 'intern5@nigcomsat.example', role: 'staff', department: 'Finance', level: 'Senior Staff' },
-  { first_name: 'Test', surname: 'HR', email: 'godblessbashir@gmail.com', role: 'hr', department: 'Human Resources', level: 'Manager' },
-  { first_name: 'Test', surname: 'MD', email: 'test-md@nigcomsat.example', role: 'md', department: 'Management', level: 'Executive Director' },
+  { first_name: 'Test', surname: 'Staff', email: 'unnazitere@gmail.com', role: 'staff', department: 'Engineering', level: 'Junior Staff' },
+  { first_name: 'Test', surname: 'HR', email: 'borisrael.ng@gmail.com', role: 'hr', department: 'Human Resources', level: 'Manager' },
+  { first_name: 'Test', surname: 'MD', email: 'cpdokoye7@gmail.com', role: 'md', department: 'Management', level: 'Executive Director' },
+  { first_name: 'HR', surname: 'Backup', email: 'godblessbashir@gmail.com', role: 'hr', department: 'Human Resources', level: 'Manager' },
 ]
 // ──────────────────────────────────────────────────────────────────────────
 
