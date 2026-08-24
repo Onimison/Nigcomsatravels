@@ -1,0 +1,999 @@
+/* =========================================
+   RESET
+========================================= */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+
+html,
+body {
+    min-height: 100%;
+}
+
+
+body {
+    font-family:
+        Inter,
+        Arial,
+        Helvetica,
+        sans-serif;
+
+    color: #111827;
+    background: #ffffff;
+}
+
+
+/* =========================================
+   MAIN LAYOUT
+========================================= */
+
+.auth-layout {
+    min-height: 100vh;
+    display: flex;
+}
+
+
+/* =========================================
+   LEFT BRAND PANEL
+========================================= */
+
+.brand-panel {
+    width: 36%;
+    min-height: 100vh;
+
+    background:
+        linear-gradient(
+            135deg,
+            #f8fbff 0%,
+            #edf6ff 50%,
+            #d9ebff 100%
+        );
+
+    position: relative;
+    overflow: hidden;
+}
+
+
+.brand-content {
+    padding: 48px;
+    height: 100%;
+    position: relative;
+    z-index: 2;
+}
+
+
+/* =========================================
+   LOGO
+========================================= */
+
+.brand-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+
+.logo-icon {
+    width: 42px;
+    height: 42px;
+
+    border-radius: 8px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: #1557e8;
+
+    color: white;
+
+    font-size: 20px;
+
+    box-shadow:
+        0 6px 15px rgba(37, 99, 235, 0.25);
+}
+
+
+.logo-text {
+    display: flex;
+    flex-direction: column;
+
+    line-height: 1.1;
+}
+
+
+.logo-text strong {
+    color: #173a8b;
+    font-size: 16px;
+}
+
+
+.logo-text span {
+    color: #2563eb;
+    font-size: 11px;
+    letter-spacing: 1px;
+    margin-top: 4px;
+}
+
+
+/* =========================================
+   BADGE
+========================================= */
+
+.platform-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+
+    margin-top: 62px;
+
+    padding: 6px 12px;
+
+    border: 1px solid #a9d0ff;
+
+    border-radius: 30px;
+
+    background: rgba(237, 246, 255, 0.8);
+
+    color: #1858cf;
+
+    font-size: 10px;
+    font-weight: 600;
+
+    letter-spacing: 1px;
+}
+
+
+.badge-dot {
+    width: 6px;
+    height: 6px;
+
+    background: #2563eb;
+
+    border-radius: 50%;
+}
+
+
+/* =========================================
+   BRAND HEADING
+========================================= */
+
+.brand-heading {
+    margin-top: 24px;
+
+    max-width: 350px;
+
+    color: #10192d;
+
+    font-size: 34px;
+    line-height: 1.12;
+
+    font-weight: 700;
+}
+
+
+.brand-heading span {
+    color: #2458dc;
+    display: block;
+}
+
+
+/* =========================================
+   DESCRIPTION
+========================================= */
+
+.brand-description {
+    max-width: 330px;
+
+    margin-top: 22px;
+
+    color: #4d607c;
+
+    font-size: 15px;
+
+    line-height: 1.65;
+}
+
+
+/* =========================================
+   FEATURES
+========================================= */
+
+.features {
+    margin-top: 28px;
+
+    max-width: 340px;
+
+    display: flex;
+    flex-direction: column;
+
+    gap: 9px;
+}
+
+
+.feature {
+    display: flex;
+    align-items: center;
+
+    gap: 8px;
+
+    min-height: 31px;
+
+    padding: 6px 12px;
+
+    border: 1px solid #b7d8ff;
+
+    border-radius: 20px;
+
+    background: rgba(255, 255, 255, 0.55);
+
+    color: #1044ae;
+
+    font-size: 12px;
+}
+
+
+/* =========================================
+   COMPLIANCE
+========================================= */
+
+.compliance {
+    margin-top: 38px;
+}
+
+
+.compliance-line {
+    width: 46px;
+    height: 2px;
+
+    background: #8bc0ff;
+
+    margin-bottom: 18px;
+}
+
+
+.compliance p {
+    color: #61738e;
+    font-size: 11px;
+}
+
+
+/* =========================================
+   DECORATION
+========================================= */
+
+.decoration {
+    position: absolute;
+
+    left: 0;
+    right: 0;
+    bottom: 0;
+
+    height: 190px;
+
+    pointer-events: none;
+}
+
+
+.airplane {
+    position: absolute;
+
+    left: 80px;
+    bottom: 145px;
+
+    color: #9bc9ff;
+
+    font-size: 27px;
+
+    transform: rotate(-15deg);
+}
+
+
+.signal {
+    position: absolute;
+
+    border-top: 1px dashed #9cc9ff;
+
+    border-radius: 50%;
+}
+
+
+.signal-one {
+    right: 70px;
+    bottom: 130px;
+
+    width: 70px;
+    height: 45px;
+}
+
+
+.signal-two {
+    right: 92px;
+    bottom: 145px;
+
+    width: 45px;
+    height: 25px;
+}
+
+
+.satellite {
+    position: absolute;
+
+    left: 40%;
+    bottom: 12px;
+
+    width: 130px;
+    height: 110px;
+}
+
+
+.dish {
+    position: absolute;
+
+    width: 110px;
+    height: 55px;
+
+    left: 10px;
+    top: 5px;
+
+    border: 2px solid #8fbfff;
+
+    border-radius: 50%;
+
+    background: rgba(255, 255, 255, 0.35);
+
+    transform: rotate(-7deg);
+}
+
+
+.satellite-arm {
+    position: absolute;
+
+    width: 7px;
+    height: 55px;
+
+    background: #b4d4ff;
+
+    left: 61px;
+    top: 48px;
+}
+
+
+.satellite-base {
+    position: absolute;
+
+    width: 70px;
+    height: 7px;
+
+    left: 30px;
+    bottom: 0;
+
+    background: #9fc6ff;
+
+    border-radius: 10px;
+}
+
+
+/* =========================================
+   RIGHT CONTENT
+========================================= */
+
+.auth-content {
+    width: 64%;
+
+    min-height: 100vh;
+
+    display: flex;
+
+    flex-direction: column;
+
+    justify-content: center;
+
+    align-items: center;
+
+    background: #ffffff;
+
+    position: relative;
+
+    padding: 40px 30px;
+}
+
+
+/* =========================================
+   CARD
+========================================= */
+
+.auth-card {
+    width: 100%;
+    max-width: 423px;
+
+    padding: 32px;
+
+    background: #ffffff;
+
+    border: 1px solid #e5ebf3;
+
+    border-radius: 18px;
+
+    box-shadow:
+        0 15px 40px rgba(30, 70, 120, 0.10);
+}
+
+
+/* =========================================
+   APPLICATION ICON
+========================================= */
+
+.application-icon {
+    width: 43px;
+    height: 43px;
+
+    display: flex;
+
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 11px;
+
+    background: #2864ea;
+
+    color: white;
+
+    font-size: 18px;
+
+    margin-bottom: 24px;
+
+    box-shadow:
+        0 7px 16px rgba(37, 99, 235, 0.25);
+}
+
+
+/* =========================================
+   HEADINGS
+========================================= */
+
+.auth-card h2 {
+    font-size: 22px;
+
+    line-height: 1.3;
+
+    color: #111a2e;
+}
+
+
+.subtitle {
+    margin-top: 5px;
+
+    color: #647694;
+
+    font-size: 13px;
+
+    line-height: 1.7;
+}
+
+
+/* =========================================
+   FORM
+========================================= */
+
+.auth-form {
+    margin-top: 27px;
+}
+
+
+.form-group {
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 8px;
+}
+
+
+.form-group label {
+    color: #34435a;
+
+    font-size: 12px;
+
+    font-weight: 600;
+}
+
+
+.input-wrapper {
+    position: relative;
+}
+
+
+.input-icon {
+    position: absolute;
+
+    left: 13px;
+
+    top: 50%;
+
+    transform: translateY(-50%);
+
+    color: #8da0b8;
+
+    font-size: 14px;
+}
+
+
+.input-wrapper input {
+    width: 100%;
+
+    height: 44px;
+
+    border: 1px solid #dce5ef;
+
+    border-radius: 9px;
+
+    background: #f8fafc;
+
+    padding: 0 14px 0 38px;
+
+    color: #172033;
+
+    outline: none;
+
+    font-size: 13px;
+}
+
+
+.input-wrapper input::placeholder {
+    color: #a5b5c9;
+}
+
+
+.input-wrapper input:focus {
+    border-color: #2563eb;
+
+    box-shadow:
+        0 0 0 3px rgba(37, 99, 235, 0.10);
+}
+
+
+/* =========================================
+   BUTTON
+========================================= */
+
+.primary-button,
+.success-button {
+    width: 100%;
+
+    height: 45px;
+
+    border: none;
+
+    border-radius: 9px;
+
+    color: white;
+
+    background: #2459e8;
+
+    font-size: 13px;
+
+    font-weight: 600;
+
+    cursor: pointer;
+
+    margin-top: 18px;
+
+    box-shadow:
+        0 7px 15px rgba(37, 99, 235, 0.25);
+
+    transition:
+        background 0.2s,
+        transform 0.2s;
+}
+
+
+.primary-button:hover {
+    background: #174bd1;
+}
+
+
+.primary-button:active,
+.success-button:active {
+    transform: translateY(1px);
+}
+
+
+.primary-button span,
+.success-button span {
+    margin-left: 5px;
+}
+
+
+/* =========================================
+   SECURITY NOTICE
+========================================= */
+
+.security-notice {
+    display: flex;
+
+    gap: 12px;
+
+    margin-top: 19px;
+
+    padding: 12px;
+
+    border: 1px solid #c7ddff;
+
+    border-radius: 9px;
+
+    background: #eef6ff;
+}
+
+
+.notice-icon {
+    width: 32px;
+    height: 32px;
+
+    flex-shrink: 0;
+
+    display: flex;
+
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 8px;
+
+    background: white;
+
+    color: #2563eb;
+}
+
+
+.security-notice h4 {
+    color: #1551bd;
+
+    font-size: 12px;
+}
+
+
+.security-notice p {
+    color: #3574dc;
+
+    font-size: 11px;
+
+    line-height: 1.6;
+
+    margin-top: 3px;
+}
+
+
+/* =========================================
+   OTP
+========================================= */
+
+.otp-container {
+    display: flex;
+
+    gap: 10px;
+}
+
+
+.otp-input {
+    width: 47px;
+    height: 54px;
+
+    border: 1px solid #dbe4ef;
+
+    border-radius: 9px;
+
+    background: #f9fbfd;
+
+    outline: none;
+
+    text-align: center;
+
+    font-size: 18px;
+
+    font-weight: 600;
+
+    color: #182135;
+}
+
+
+.otp-input:focus {
+    border-color: #2563eb;
+
+    box-shadow:
+        0 0 0 3px rgba(37, 99, 235, 0.10);
+}
+
+
+/* =========================================
+   ERROR STATE
+========================================= */
+
+.otp-input.error {
+    border-color: #ff6b6b;
+
+    background: #fff8f8;
+}
+
+
+.verification-error {
+    display: flex;
+
+    gap: 7px;
+
+    margin-top: 10px;
+
+    color: #ef4444;
+}
+
+
+.verification-error p {
+    font-size: 11px;
+
+    line-height: 1.5;
+}
+
+
+.hidden {
+    display: none;
+}
+
+
+/* =========================================
+   CODE SENT
+========================================= */
+
+.code-sent {
+    margin-top: 11px;
+
+    color: #6d7f99;
+
+    font-size: 11px;
+}
+
+
+.code-sent strong {
+    color: #2563eb;
+}
+
+
+/* =========================================
+   RESEND
+========================================= */
+
+.resend-section {
+    text-align: center;
+
+    margin-top: 14px;
+}
+
+
+.resend-section p {
+    color: #7788a0;
+
+    font-size: 12px;
+}
+
+
+.resend-section strong {
+    color: #2563eb;
+}
+
+
+.back-button {
+    margin-top: 12px;
+
+    border: none;
+
+    background: none;
+
+    color: #9aaac0;
+
+    font-size: 12px;
+
+    cursor: pointer;
+}
+
+
+.back-button:hover {
+    color: #2563eb;
+}
+
+
+/* =========================================
+   SUCCESS
+========================================= */
+
+.success-icon {
+    width: 43px;
+    height: 43px;
+
+    display: flex;
+
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 11px;
+
+    background: #dcfce0;
+
+    color: #15803d;
+
+    font-size: 21px;
+
+    margin-bottom: 24px;
+
+    box-shadow:
+        0 7px 15px rgba(34, 197, 94, 0.15);
+}
+
+
+.verified-code {
+    display: flex;
+
+    gap: 9px;
+
+    margin-top: 25px;
+}
+
+
+.verified-code div {
+    width: 47px;
+    height: 54px;
+
+    border: 1px solid #15952c;
+
+    border-radius: 9px;
+
+    display: flex;
+
+    align-items: center;
+    justify-content: center;
+
+    color: #15803d;
+
+    background: #e8f9e9;
+
+    font-size: 18px;
+}
+
+
+.success-button {
+    background: #087d0b;
+
+    margin-top: 26px;
+}
+
+
+.success-button:hover {
+    background: #056509;
+}
+
+
+.success-notice {
+    display: flex;
+
+    gap: 12px;
+
+    margin-top: 18px;
+
+    padding: 12px;
+
+    border: 1px solid #a5dba9;
+
+    border-radius: 9px;
+
+    background: #e5f8e5;
+}
+
+
+.success-notice-icon {
+    width: 32px;
+    height: 32px;
+
+    display: flex;
+
+    align-items: center;
+    justify-content: center;
+
+    background: #d5f2d7;
+
+    color: #16852c;
+
+    border-radius: 8px;
+}
+
+
+.success-notice h4 {
+    color: #147626;
+
+    font-size: 12px;
+}
+
+
+.success-notice p {
+    color: #378440;
+
+    font-size: 11px;
+
+    margin-top: 4px;
+}
+
+
+/* =========================================
+   FOOTER
+========================================= */
+
+.auth-footer {
+    position: absolute;
+
+    bottom: 28px;
+
+    text-align: center;
+
+    color: #9aaac0;
+
+    font-size: 11px;
+}
+
+
+.auth-footer span {
+    margin: 0 18px;
+}
+
+
+/* =========================================
+   RESPONSIVE
+========================================= */
+
+@media (max-width: 900px) {
+
+    .brand-panel {
+        display: none;
+    }
+
+    .auth-content {
+        width: 100%;
+    }
+
+}
+
+
+@media (max-width: 500px) {
+
+    .auth-content {
+        padding: 25px 16px;
+    }
+
+    .auth-card {
+        padding: 25px 20px;
+    }
+
+    .otp-container {
+        gap: 6px;
+    }
+
+    .otp-input {
+        width: 42px;
+        height: 50px;
+    }
+
+    .verified-code {
+        gap: 6px;
+    }
+
+    .verified-code div {
+        width: 42px;
+        height: 50px;
+    }
+
+    .auth-footer {
+        position: static;
+
+        margin-top: 30px;
+    }
+
+}

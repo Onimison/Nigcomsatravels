@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>NIGCOMSATRAVELS | Verify Identity</title>
+
+    <link rel="stylesheet" href="../../css/auth.css">
+
+</head>
+
+<body>
+
+    <main class="auth-layout">
+
+        <!-- =========================
+             LEFT PANEL
+        ========================== -->
+        <aside class="brand-panel">
+
+            <div class="brand-content">
+
+                <!-- Logo -->
+                <div class="brand-logo">
+
+                    <div class="logo-icon">
+                        ◉
+                    </div>
+
+                    <div class="logo-text">
+
+                        <strong>
+                            NIGCOMSAT
+                        </strong>
+
+                        <span>
+                            TRAVELS
+                        </span>
+
+                    </div>
+
+                </div>
+
+
+                <!-- Badge -->
+                <div class="platform-badge">
+
+                    <span class="badge-dot"></span>
+
+                    INTERNAL ENTERPRISE PLATFORM
+
+                </div>
+
+
+                <!-- Heading -->
+                <h1 class="brand-heading">
+
+                    Official Travel
+
+                    <span>
+                        Management
+                    </span>
+
+                    System
+
+                </h1>
+
+
+                <!-- Description -->
+                <p class="brand-description">
+
+                    Manage official travel requests, approvals
+                    and compliance securely and efficiently —
+                    from request to reimbursement.
+
+                </p>
+
+
+                <!-- Features -->
+                <div class="features">
+
+                    <div class="feature">
+                        ✈️
+                        <span>
+                            Travel request &amp; approval workflow
+                        </span>
+                    </div>
+
+                    <div class="feature">
+                        🔒
+                        <span>
+                            Passwordless secure authentication
+                        </span>
+                    </div>
+
+                    <div class="feature">
+                        📊
+                        <span>
+                            Executive dashboard &amp; analytics
+                        </span>
+                    </div>
+
+                </div>
+
+<!-- 
+                <!-- Compliance -->
+                <div class="compliance">
+
+                    <div class="compliance-line"></div>
+
+                    <p>
+                        ♢ &nbsp; FG-compliant · ISO 27001 aligned ·
+                        Audit-logged
+                    </p>
+
+                </div>
+
+
+                <!-- Decoration -->
+                <div class="decoration">
+
+                    <div class="airplane">
+                        ✈
+                    </div>
+
+                    <div class="signal signal-one"></div>
+                    <div class="signal signal-two"></div>
+
+                    <div class="satellite">
+
+                        <div class="dish"></div>
+
+                        <div class="satellite-arm"></div>
+
+                        <div class="satellite-base"></div> -->
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </aside>
+
+
+        <!-- =========================
+             RIGHT CONTENT
+        ========================== -->
+        <section class="auth-content">
+
+            <div class="auth-card">
+
+                <!-- Icon -->
+                <div class="application-icon">
+                    ◉
+                </div>
+
+
+                <!-- Heading -->
+                <h2>
+                    Verify Your Identity
+                </h2>
+
+                <p class="subtitle">
+                    Enter the 6-digit verification code sent
+                    to your official company email.
+                </p>
+
+
+                <!-- Verification Form -->
+                <form
+                    id="verifyForm"
+                    class="auth-form"
+                >
+
+                    <!-- OTP -->
+                    <div
+                        class="otp-container"
+                        id="otpContainer"
+                    >
+
+                        <input
+                            type="text"
+                            maxlength="1"
+                            inputmode="numeric"
+                            class="otp-input"
+                            aria-label="Verification digit 1"
+                        >
+
+                        <input
+                            type="text"
+                            maxlength="1"
+                            inputmode="numeric"
+                            class="otp-input"
+                            aria-label="Verification digit 2"
+                        >
+
+                        <input
+                            type="text"
+                            maxlength="1"
+                            inputmode="numeric"
+                            class="otp-input"
+                            aria-label="Verification digit 3"
+                        >
+
+                        <input
+                            type="text"
+                            maxlength="1"
+                            inputmode="numeric"
+                            class="otp-input"
+                            aria-label="Verification digit 4"
+                        >
+
+                        <input
+                            type="text"
+                            maxlength="1"
+                            inputmode="numeric"
+                            class="otp-input"
+                            aria-label="Verification digit 5"
+                        >
+
+                        <input
+                            type="text"
+                            maxlength="1"
+                            inputmode="numeric"
+                            class="otp-input"
+                            aria-label="Verification digit 6"
+                        >
+
+                    </div>
+
+
+                    <!-- Error Message -->
+                    <div
+                        id="verificationError"
+                        class="verification-error hidden"
+                    >
+                        <span>ⓘ</span>
+
+                        <p>
+                            The verification code you entered
+                            is incorrect. Please try again.
+                        </p>
+                    </div>
+
+
+                    <!-- Email -->
+                    <p class="code-sent">
+                        Code sent to
+                        <strong id="userEmail">
+                            yourname@nigcomsat.gov.ng
+                        </strong>
+                    </p>
+
+
+                    <!-- Verify -->
+                    <button
+                        type="submit"
+                        class="primary-button"
+                    >
+                        Verify Code
+                        <span>→</span>
+                    </button>
+
+                </form>
+
+
+                <!-- Resend -->
+                <div class="resend-section">
+
+                    <p>
+                        Resend Code in
+                        <strong id="countdown">
+                            0:14
+                        </strong>
+                    </p>
+
+                    <button
+                        type="button"
+                        id="backButton"
+                        class="back-button"
+                    >
+                        ‹ &nbsp;Back
+                    </button>
+
+                </div>
+
+
+                <!-- Security -->
+                <div class="security-notice">
+
+                    <div class="notice-icon">
+                        ♢
+                    </div>
+
+                    <div>
+
+                        <h4>
+                            Passwordless secure login
+                        </h4>
+
+                        <p>
+                            A 6-digit verification code will be sent
+                            to your official company email. Codes
+                            expire in 10 minutes and can only be used once.
+                        </p>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- Footer -->
+            <footer class="auth-footer">
+
+                &copy; 2026 NIGCOMSAT Limited
+
+                <span>•</span>
+
+                Internal Use Only.
+
+            </footer>
+
+        </section>
+
+    </main>
+
+
+    <script src="../../js/auth.js"></script>
+
+</body>
+</html>
