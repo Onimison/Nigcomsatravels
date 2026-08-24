@@ -16,7 +16,8 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { CashIcon } from '@/components/ui/icons'
-import { formatDate, formatUSD, usdToNgn } from '@/lib/utils/formatting'
+import { Money } from '@/components/ui/money'
+import { formatDate, usdToNgn } from '@/lib/utils/formatting'
 import type { TravelRequestForMD } from '@/types/database'
 import { useRouter } from 'next/navigation'
 
@@ -70,35 +71,41 @@ function CostBreakdown({ row }: { row: TravelRequestForMD }) {
         <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
           <CashIcon className="h-3.5 w-3.5" />
         </span>
-        <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Cost Breakdown (USD)</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Cost Breakdown (NGN)</p>
       </div>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-3">
-        {ALLOWANCE_FIELDS.map(({ key, label }) => (
-          <div key={key} className="flex justify-between gap-2 sm:block">
-            <dt className="text-xs text-gray-500">{label}</dt>
-            <dd className="font-medium text-gray-900">
-              {row[key] != null ? formatUSD(Number(row[key])) : '—'}
-            </dd>
-          </div>
-        ))}
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3">
+        {ALLOWANCE_FIELDS.map(({ key, label }) => {
+          const usd = row[key] != null ? Number(row[key]) : null
+          return (
+            <div key={key} className="flex justify-between gap-2 sm:block">
+              <dt className="text-xs text-gray-500">{label}</dt>
+              <dd>
+                <Money
+                  ngn={usd != null && row.locked_fx_rate != null ? usdToNgn(usd, row.locked_fx_rate) : null}
+                  usd={usd}
+                  size="sm"
+                  layout="inline"
+                />
+              </dd>
+            </div>
+          )
+        })}
       </dl>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-2">
+      <div className="mt-3 flex flex-wrap items-end justify-between gap-3 border-t border-gray-200 pt-2">
         <span className="text-xs text-gray-500">
           Level coverage: {coveragePercent != null ? `${coveragePercent}%` : 'Unknown'}
         </span>
-        <div className="text-right">
+        <div>
           <p className="text-xs text-gray-500">Final Total</p>
-          <p className="text-base font-semibold text-gray-900">
-            {row.final_cost != null ? formatUSD(row.final_cost) : 'Pending HR calculation'}
-          </p>
-          {row.final_cost != null && row.locked_fx_rate != null && (
-            <p className="text-xs text-gray-500">
-              ≈ {usdToNgn(row.final_cost, row.locked_fx_rate).toLocaleString('en-NG', {
-                style: 'currency',
-                currency: 'NGN',
-                maximumFractionDigits: 0,
-              })}
-            </p>
+          {row.final_cost != null ? (
+            <Money
+              ngn={row.locked_fx_rate != null ? usdToNgn(row.final_cost, row.locked_fx_rate) : null}
+              usd={row.final_cost}
+              size="md"
+              align="right"
+            />
+          ) : (
+            <p className="text-sm font-medium text-gray-500">Pending HR calculation</p>
           )}
         </div>
       </div>
@@ -238,9 +245,13 @@ function HistoryCard({ row }: { row: TravelRequestForMD }) {
         </div>
         <div className="text-right">
           <StatusBadge status={row.status} />
-          <p className="mt-1 text-sm font-semibold text-gray-900">
-            {row.final_cost != null ? formatUSD(row.final_cost) : '—'}
-          </p>
+          <div className="mt-1">
+            <Money
+              ngn={row.final_cost != null && row.locked_fx_rate != null ? usdToNgn(row.final_cost, row.locked_fx_rate) : null}
+              usd={row.final_cost}
+              align="right"
+            />
+          </div>
         </div>
       </div>
       {reason && (

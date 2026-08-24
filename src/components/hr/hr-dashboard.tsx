@@ -17,11 +17,13 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { CashIcon } from '@/components/ui/icons'
+import { Money } from '@/components/ui/money'
 import { FlightLookupCard } from '@/components/hr/flight-lookup-card'
 import {
   formatDate,
-  formatUSD,
+  formatNGN,
   usdToNgn,
+  ngnToUsd,
   calculateTotalRawAllowance,
   calculateFinalCost,
   formatStaleness,
@@ -68,7 +70,7 @@ function decisionReason(row: TravelRequestForMD): string | null {
   return latest?.reason ?? null
 }
 
-function ReviewCard({ row }: { row: TravelRequestForHR }) {
+function ReviewCard({ row, fxRate }: { row: TravelRequestForHR; fxRate: number | null }) {
   const router = useRouter()
   const coveragePercent = row.staff?.level?.coverage_percent ?? 100
 
@@ -82,7 +84,12 @@ function ReviewCard({ row }: { row: TravelRequestForHR }) {
   const [pendingAction, setPendingAction] = useState<'forward' | 'reject' | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const parsedAllowances = useMemo(() => {
+  // HR types these in Naira — what accommodation/flight/taxi quotes actually
+  // come in. Everything downstream (travel_requests columns, MD's dashboard,
+  // the audit trail) is USD, so the NGN entry is converted at this boundary,
+  // once, using the same rate that gets locked onto the request in
+  // hrReviewRequest() (PRD Section 5.2).
+  const parsedAllowancesNgn = useMemo(() => {
     const parsed = {} as Record<AllowanceField, number>
     for (const { key } of ALLOWANCE_FIELDS) {
       const n = Number(allowances[key])
@@ -91,8 +98,10 @@ function ReviewCard({ row }: { row: TravelRequestForHR }) {
     return parsed
   }, [allowances])
 
-  const rawTotal = calculateTotalRawAllowance(parsedAllowances)
-  const finalCost = calculateFinalCost(rawTotal, coveragePercent)
+  const rawTotalNgn = calculateTotalRawAllowance(parsedAllowancesNgn)
+  const finalCostNgn = calculateFinalCost(rawTotalNgn, coveragePercent)
+  const rawTotalUsd = fxRate ? ngnToUsd(rawTotalNgn, fxRate) : null
+  const finalCostUsd = fxRate ? ngnToUsd(finalCostNgn, fxRate) : null
 
   function updateField(key: AllowanceField, value: string) {
     setAllowances((prev) => ({ ...prev, [key]: value }))
@@ -111,20 +120,32 @@ function ReviewCard({ row }: { row: TravelRequestForHR }) {
       return
     }
 
+    if (!fxRate) {
+      setSuggestion({
+        loading: false,
+        checked: true,
+        message: 'No FX rate configured; enter amounts manually.',
+      })
+      return
+    }
+
     const { data } = result
+    // Reference rates in the Master Rate Table are USD — convert to NGN,
+    // since that's what these fields take.
+    const toNgnString = (usd: number) => (Math.round(usdToNgn(usd, fxRate) * 100) / 100).toString()
     setAllowances((prev) => ({
       ...prev,
-      ...(data.allowance_flight != null && { allowance_flight: String(data.allowance_flight) }),
-      ...(data.allowance_taxi != null && { allowance_taxi: String(data.allowance_taxi) }),
-      ...(data.accommodation != null && { accommodation: String(data.accommodation) }),
-      ...(data.per_diem != null && { per_diem: String(data.per_diem) }),
+      ...(data.allowance_flight != null && { allowance_flight: toNgnString(data.allowance_flight) }),
+      ...(data.allowance_taxi != null && { allowance_taxi: toNgnString(data.allowance_taxi) }),
+      ...(data.accommodation != null && { accommodation: toNgnString(data.accommodation) }),
+      ...(data.per_diem != null && { per_diem: toNgnString(data.per_diem) }),
     }))
     const staleness =
       data.allowance_flight != null ? ` Flight price: ${formatStaleness(data.flightUpdatedAt).toLowerCase()}.` : ''
     setSuggestion({
       loading: false,
       checked: true,
-      message: `Standard rates applied. Review before forwarding.${staleness}`,
+      message: `Standard rates applied, converted to NGN at today's rate. Review before forwarding.${staleness}`,
     })
   }
 
@@ -138,14 +159,20 @@ function ReviewCard({ row }: { row: TravelRequestForHR }) {
       }
     }
 
+    if (!fxRate) {
+      setError('No FX rate is configured. Contact an admin before forwarding.')
+      return
+    }
+
     setPendingAction('forward')
     const result = await hrReviewRequest({
       request_id: row.id,
-      allowance_local: parsedAllowances.allowance_local,
-      allowance_flight: parsedAllowances.allowance_flight,
-      allowance_taxi: parsedAllowances.allowance_taxi,
-      accommodation: parsedAllowances.accommodation,
-      per_diem: parsedAllowances.per_diem,
+      // Stored/calculated in USD — convert the NGN entry at the boundary.
+      allowance_local: ngnToUsd(parsedAllowancesNgn.allowance_local, fxRate),
+      allowance_flight: ngnToUsd(parsedAllowancesNgn.allowance_flight, fxRate),
+      allowance_taxi: ngnToUsd(parsedAllowancesNgn.allowance_taxi, fxRate),
+      accommodation: ngnToUsd(parsedAllowancesNgn.accommodation, fxRate),
+      per_diem: ngnToUsd(parsedAllowancesNgn.per_diem, fxRate),
       hr_note: note.trim() || undefined,
     })
     setPendingAction(null)
@@ -227,12 +254,23 @@ function ReviewCard({ row }: { row: TravelRequestForHR }) {
             <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
               <CashIcon className="h-3.5 w-3.5" />
             </span>
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Allowances (USD)</p>
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Allowances (NGN)</p>
+              {fxRate && (
+                <p className="text-[11px] text-gray-400">1 USD ≈ {formatNGN(fxRate)}</p>
+              )}
+            </div>
           </div>
           <Button variant="outline" onClick={handleSuggestRates} disabled={suggestion.loading}>
             {suggestion.loading ? 'Looking up rates…' : 'Suggest Standard Rates'}
           </Button>
         </div>
+
+        {!fxRate && (
+          <p className="mt-2 text-xs text-red-600" role="alert">
+            No FX rate is configured — amounts can&apos;t be converted to USD for storage. Contact an admin.
+          </p>
+        )}
 
         {suggestion.checked && suggestion.message && (
           <p className="mt-2 text-xs text-blue-700">{suggestion.message}</p>
@@ -272,11 +310,14 @@ function ReviewCard({ row }: { row: TravelRequestForHR }) {
           ))}
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-3">
-          <span className="text-xs text-gray-500">Total Raw Allowance: {formatUSD(rawTotal)}</span>
-          <div className="text-right">
+        <div className="mt-3 flex flex-wrap items-end justify-between gap-3 border-t border-gray-200 pt-3">
+          <div>
+            <p className="text-xs text-gray-500">Total Raw Allowance</p>
+            <Money ngn={rawTotalNgn} usd={rawTotalUsd} size="sm" />
+          </div>
+          <div>
             <p className="text-xs text-gray-500">Final Total ({coveragePercent}% coverage)</p>
-            <p className="text-base font-semibold text-gray-900">{formatUSD(finalCost)}</p>
+            <Money ngn={finalCostNgn} usd={finalCostUsd} size="lg" align="right" />
           </div>
         </div>
       </div>
@@ -328,18 +369,13 @@ function HistoryRow({ row }: { row: TravelRequestForMD }) {
         </div>
         <div className="text-right">
           <StatusBadge status={row.status} />
-          <p className="mt-1 text-sm font-semibold text-gray-900">
-            {row.final_cost != null ? formatUSD(row.final_cost) : '—'}
-          </p>
-          {row.final_cost != null && row.locked_fx_rate != null && (
-            <p className="text-xs text-gray-500">
-              ≈ {usdToNgn(row.final_cost, row.locked_fx_rate).toLocaleString('en-NG', {
-                style: 'currency',
-                currency: 'NGN',
-                maximumFractionDigits: 0,
-              })}
-            </p>
-          )}
+          <div className="mt-1">
+            <Money
+              ngn={row.final_cost != null && row.locked_fx_rate != null ? usdToNgn(row.final_cost, row.locked_fx_rate) : null}
+              usd={row.final_cost}
+              align="right"
+            />
+          </div>
         </div>
       </div>
       {reason && row.status === 'hr_rejected' && (
@@ -354,9 +390,11 @@ function HistoryRow({ row }: { row: TravelRequestForMD }) {
 export function HRDashboard({
   pending,
   history,
+  fxRate,
 }: {
   pending: TravelRequestForHR[]
   history: TravelRequestForMD[]
+  fxRate: number | null
 }) {
   const [department, setDepartment] = useState('all')
   const [destination, setDestination] = useState('')
@@ -432,7 +470,7 @@ export function HRDashboard({
         ) : (
           <div className="space-y-3">
             {visible.map((row) => (
-              <ReviewCard key={row.id} row={row} />
+              <ReviewCard key={row.id} row={row} fxRate={fxRate} />
             ))}
           </div>
         )}

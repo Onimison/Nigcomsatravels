@@ -5,10 +5,11 @@
  * hr/page.tsx and passed straight through, no client interactivity needed.
  */
 
-import { formatUSD, formatStaleness, isStale } from '@/lib/utils/formatting'
+import { formatStaleness, isStale, usdToNgn } from '@/lib/utils/formatting'
+import { Money } from '@/components/ui/money'
 import type { RateReferenceWithLevel } from '@/types/database'
 
-function PriceRow({ row }: { row: RateReferenceWithLevel }) {
+function PriceRow({ row, fxRate }: { row: RateReferenceWithLevel; fxRate: number | null }) {
   const stale = isStale(row.updated_at)
   return (
     <div className="flex items-center justify-between gap-2 py-2">
@@ -17,9 +18,11 @@ function PriceRow({ row }: { row: RateReferenceWithLevel }) {
         <p className="text-xs capitalize text-gray-500">{row.level?.name ?? '—'} · {row.mode}</p>
       </div>
       <div className="text-right">
-        <p className="text-sm font-semibold text-gray-900 dark:text-gray-50">
-          {row.flight_estimate != null ? formatUSD(row.flight_estimate) : '—'}
-        </p>
+        <Money
+          ngn={row.flight_estimate != null && fxRate ? usdToNgn(row.flight_estimate, fxRate) : null}
+          usd={row.flight_estimate}
+          align="right"
+        />
         <p className={`text-xs ${stale ? 'font-medium text-amber-600 dark:text-amber-400' : 'text-gray-400'}`}>
           {formatStaleness(row.updated_at)}
         </p>
@@ -28,7 +31,7 @@ function PriceRow({ row }: { row: RateReferenceWithLevel }) {
   )
 }
 
-export function FlightPricePanel({ rates }: { rates: RateReferenceWithLevel[] }) {
+export function FlightPricePanel({ rates, fxRate }: { rates: RateReferenceWithLevel[]; fxRate: number | null }) {
   const domestic = rates.filter((r) => r.route_type === 'domestic' && r.flight_estimate != null)
   const international = rates.filter((r) => r.route_type === 'international' && r.flight_estimate != null)
 
@@ -51,7 +54,7 @@ export function FlightPricePanel({ rates }: { rates: RateReferenceWithLevel[] })
               {domestic.length === 0 ? (
                 <p className="py-2 text-sm text-gray-500">None on file.</p>
               ) : (
-                domestic.map((row) => <PriceRow key={row.id} row={row} />)
+                domestic.map((row) => <PriceRow key={row.id} row={row} fxRate={fxRate} />)
               )}
             </div>
           </div>
@@ -63,7 +66,7 @@ export function FlightPricePanel({ rates }: { rates: RateReferenceWithLevel[] })
               {international.length === 0 ? (
                 <p className="py-2 text-sm text-gray-500">None on file.</p>
               ) : (
-                international.map((row) => <PriceRow key={row.id} row={row} />)
+                international.map((row) => <PriceRow key={row.id} row={row} fxRate={fxRate} />)
               )}
             </div>
           </div>

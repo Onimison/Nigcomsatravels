@@ -23,11 +23,13 @@ import {
   getRequestEstimate,
 } from '@/lib/actions/requests.actions'
 import { useOverlapWarning } from '@/hooks/useOverlapWarning'
-import { formatDate, formatUSD } from '@/lib/utils/formatting'
+import { formatDate, usdToNgn } from '@/lib/utils/formatting'
+import { queueToast } from '@/lib/utils/toast'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
+import { Money } from '@/components/ui/money'
 import type { AirportOption, TravelMode } from '@/types/database'
 
 /**
@@ -54,6 +56,8 @@ interface TravelRequestFormProps {
   airports: AirportOption[]
   resubmitTarget?: ResubmitTarget | null
   onCancelResubmit?: () => void
+  /** For converting the pre-submit estimate (rate_reference is USD) to the NGN staff actually see. */
+  fxRate?: number | null
 }
 
 const EMPTY_FORM = {
@@ -196,13 +200,13 @@ export function TravelRequestForm({
   airports,
   resubmitTarget,
   onCancelResubmit,
+  fxRate = null,
 }: TravelRequestFormProps) {
   const router = useRouter()
   const [form, setForm] = useState(() => buildInitialForm(airports, resubmitTarget))
   const daysTouched = useRef(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
 
   const [estimate, setEstimate] = useState<{ checked: boolean; value: number | null }>({
     checked: false,
@@ -272,7 +276,6 @@ export function TravelRequestForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    setSuccess(null)
 
     const parsedDays = Number(form.days)
     const input = {
@@ -298,11 +301,12 @@ export function TravelRequestForm({
       return
     }
 
-    setSuccess(resubmitTarget ? 'Request resubmitted for HR review.' : 'Travel request submitted for HR review.')
-    setForm(EMPTY_FORM)
-    daysTouched.current = false
-    onCancelResubmit?.()
-    router.refresh()
+    // Confirmation is shown as a pop-up on the page we land on, not inline
+    // here — the whole point of redirecting is to get the user off the form.
+    queueToast(
+      resubmitTarget ? 'Request resubmitted for HR review.' : 'Travel request submitted for HR review.'
+    )
+    router.push('/staff/pending')
   }
 
   return (
@@ -421,7 +425,17 @@ export function TravelRequestForm({
       {estimate.checked && (
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
           {estimate.value !== null ? (
-            <>Estimated allowance: <strong>{formatUSD(estimate.value)}</strong>. Subject to HR verification.</>
+            <div className="flex flex-wrap items-baseline gap-x-1.5">
+              <span>Estimated allowance:</span>
+              <Money
+                ngn={fxRate ? usdToNgn(estimate.value, fxRate) : null}
+                usd={estimate.value}
+                size="sm"
+                layout="inline"
+                className="!text-blue-900"
+              />
+              <span>· Subject to HR verification.</span>
+            </div>
           ) : (
             'No reference rate found; HR will compute manually.'
           )}
@@ -430,9 +444,6 @@ export function TravelRequestForm({
 
       {error && (
         <p className="text-sm text-red-600" role="alert">{error}</p>
-      )}
-      {success && (
-        <p className="text-sm text-green-600" role="status">{success}</p>
       )}
 
       <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">

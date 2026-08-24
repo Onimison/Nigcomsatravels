@@ -17,7 +17,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { AlertTriangleIcon } from '@/components/ui/icons'
-import { formatUSD, formatStaleness, isStale } from '@/lib/utils/formatting'
+import { Money } from '@/components/ui/money'
+import { formatNGN, formatStaleness, isStale, usdToNgn } from '@/lib/utils/formatting'
 import type { Level, RateReferenceWithLevel, RouteType } from '@/types/database'
 
 type NumField = 'flight_estimate' | 'accommodation_rate' | 'per_diem_rate' | 'airport_taxi'
@@ -146,7 +147,7 @@ function AddRateForm({ levels, onDone }: { levels: Level[]; onDone: () => void }
   )
 }
 
-function RateRow({ row }: { row: RateReferenceWithLevel }) {
+function RateRow({ row, fxRate }: { row: RateReferenceWithLevel; fxRate: number | null }) {
   const router = useRouter()
   const [editing, setEditing] = useState(false)
   const [values, setValues] = useState<Record<NumField, string>>({
@@ -205,10 +206,13 @@ function RateRow({ row }: { row: RateReferenceWithLevel }) {
                 className="px-2 py-1"
               />
             </div>
-          ) : row[key] != null ? (
-            formatUSD(Number(row[key]))
           ) : (
-            '—'
+            <Money
+              ngn={row[key] != null && fxRate ? usdToNgn(Number(row[key]), fxRate) : null}
+              usd={row[key] != null ? Number(row[key]) : null}
+              size="sm"
+              layout="inline"
+            />
           )}
         </td>
       ))}
@@ -232,7 +236,15 @@ function RateRow({ row }: { row: RateReferenceWithLevel }) {
   )
 }
 
-function RateGroup({ title, rows }: { title: string; rows: RateReferenceWithLevel[] }) {
+function RateGroup({
+  title,
+  rows,
+  fxRate,
+}: {
+  title: string
+  rows: RateReferenceWithLevel[]
+  fxRate: number | null
+}) {
   return (
     <div>
       <h3 className="text-sm font-semibold text-gray-700">
@@ -254,7 +266,7 @@ function RateGroup({ title, rows }: { title: string; rows: RateReferenceWithLeve
             </thead>
             <tbody>
               {rows.map((row) => (
-                <RateRow key={row.id} row={row} />
+                <RateRow key={row.id} row={row} fxRate={fxRate} />
               ))}
             </tbody>
           </table>
@@ -264,7 +276,15 @@ function RateGroup({ title, rows }: { title: string; rows: RateReferenceWithLeve
   )
 }
 
-export function RateManagement({ rates, levels }: { rates: RateReferenceWithLevel[]; levels: Level[] }) {
+export function RateManagement({
+  rates,
+  levels,
+  fxRate,
+}: {
+  rates: RateReferenceWithLevel[]
+  levels: Level[]
+  fxRate: number | null
+}) {
   const [showAddForm, setShowAddForm] = useState(false)
   const domestic = rates.filter((r) => r.route_type === 'domestic')
   const international = rates.filter((r) => r.route_type === 'international')
@@ -283,6 +303,10 @@ export function RateManagement({ rates, levels }: { rates: RateReferenceWithLeve
               </span>
             )}
           </p>
+          <p className="mt-1 text-xs text-gray-400">
+            Rates are entered and stored in USD; NGN shown alongside is converted at the current FX rate
+            {fxRate ? <> — 1 USD ≈ {formatNGN(fxRate)}</> : ' (not configured)'}.
+          </p>
         </div>
         <Button onClick={() => setShowAddForm((v) => !v)} disabled={levels.length === 0}>
           {showAddForm ? 'Close' : '+ Add Rate'}
@@ -296,8 +320,8 @@ export function RateManagement({ rates, levels }: { rates: RateReferenceWithLeve
       {showAddForm && <AddRateForm levels={levels} onDone={() => setShowAddForm(false)} />}
 
       <div className="mt-6 space-y-6">
-        <RateGroup title="Domestic" rows={domestic} />
-        <RateGroup title="International" rows={international} />
+        <RateGroup title="Domestic" rows={domestic} fxRate={fxRate} />
+        <RateGroup title="International" rows={international} fxRate={fxRate} />
       </div>
     </div>
   )

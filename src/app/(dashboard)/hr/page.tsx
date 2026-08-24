@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { requireRole } from '@/lib/utils/auth-guard'
 import { getPendingHRRequests, getHRHistory } from '@/lib/actions/requests.actions'
-import { listFlightPriceReference } from '@/lib/actions/rates.actions'
+import { listFlightPriceReference, getFxRateOverride } from '@/lib/actions/rates.actions'
 import { HRDashboard } from '@/components/hr/hr-dashboard'
 import { FlightPricePanel } from '@/components/hr/flight-price-panel'
 import { PageHeader } from '@/components/ui/page-header'
@@ -31,11 +31,16 @@ export default async function HRDashboardPage() {
     redirect('/')
   }
 
-  const [pendingResult, historyResult, flightRatesResult] = await Promise.all([
+  const [pendingResult, historyResult, flightRatesResult, fxRateResult] = await Promise.all([
     getPendingHRRequests(),
     getHRHistory(),
     listFlightPriceReference(),
+    getFxRateOverride(),
   ])
+
+  // HR prices allowances in NGN; this is what converts that entry to the USD
+  // figure the rest of the app stores and calculates on (PRD Section 5.2).
+  const fxRate = fxRateResult.success && fxRateResult.data ? Number(fxRateResult.data.value) : null
 
   const resubmissionCount = pendingResult.data.filter((r) => r.previousRejectionReason).length
   const processedToday = historyResult.data.filter((r) => {
@@ -64,9 +69,9 @@ export default async function HRDashboardPage() {
         <StatTile icon={HistoryIcon} value={processedToday} label="Processed Today" tone="green" />
       </div>
 
-      <FlightPricePanel rates={(flightRatesResult.data ?? []) as RateReferenceWithLevel[]} />
+      <FlightPricePanel rates={(flightRatesResult.data ?? []) as RateReferenceWithLevel[]} fxRate={fxRate} />
 
-      <HRDashboard pending={pendingResult.data} history={historyResult.data} />
+      <HRDashboard pending={pendingResult.data} history={historyResult.data} fxRate={fxRate} />
     </div>
   )
 }

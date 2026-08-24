@@ -13,9 +13,11 @@ import type { AirportOption } from '@/types/database'
 export function RequestFormClient({
   airports,
   resubmitTarget,
+  fxRate,
 }: {
   airports: AirportOption[]
   resubmitTarget: ResubmitTarget | null
+  fxRate: number | null
 }) {
   const router = useRouter()
 
@@ -24,6 +26,7 @@ export function RequestFormClient({
       key={resubmitTarget?.id ?? 'new'}
       airports={airports}
       resubmitTarget={resubmitTarget}
+      fxRate={fxRate}
       onCancelResubmit={() => router.push('/staff/request')}
     />
   )

@@ -40,6 +40,17 @@ export function usdToNgn(amountUsd: number, fxRate: number): number {
   return amountUsd * fxRate
 }
 
+/**
+ * Convert NGN to USD using a given exchange rate — the inverse of
+ * `usdToNgn`. HR prices allowances in Naira (what their quotes actually
+ * come in), and this is what turns that entry into the USD figure the rest
+ * of the app stores and calculates on (PRD Section 5.2).
+ */
+export function ngnToUsd(amountNgn: number, fxRate: number): number {
+  if (!fxRate) return 0
+  return amountNgn / fxRate
+}
+
 // ============================================================
 // Cost Calculation (PRD Section 5.1)
 // ============================================================

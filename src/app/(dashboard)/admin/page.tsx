@@ -5,7 +5,7 @@ import { requireRole } from '@/lib/utils/auth-guard'
 import { listStaff } from '@/lib/actions/staff.actions'
 import { listDepartments } from '@/lib/actions/departments.actions'
 import { listLevels } from '@/lib/actions/levels.actions'
-import { listRateReferences } from '@/lib/actions/rates.actions'
+import { listRateReferences, getFxRateOverride } from '@/lib/actions/rates.actions'
 import { StaffManagement } from '@/components/admin/staff-management'
 import { LevelManagement } from '@/components/admin/level-management'
 import { RateManagement } from '@/components/admin/rate-management'
@@ -38,12 +38,15 @@ export default async function AdminDashboardPage() {
     redirect('/')
   }
 
-  const [staffResult, departmentsResult, levelsResult, ratesResult] = await Promise.all([
+  const [staffResult, departmentsResult, levelsResult, ratesResult, fxRateResult] = await Promise.all([
     listStaff(),
     listDepartments(),
     listLevels(),
     listRateReferences(),
+    getFxRateOverride(),
   ])
+
+  const fxRate = fxRateResult.success && fxRateResult.data ? Number(fxRateResult.data.value) : null
 
   return (
     <div className="space-y-6">
@@ -91,6 +94,7 @@ export default async function AdminDashboardPage() {
                 <RateManagement
                   rates={(ratesResult.data ?? []) as RateReferenceWithLevel[]}
                   levels={(levelsResult.data ?? []) as Level[]}
+                  fxRate={fxRate}
                 />
               ),
             },

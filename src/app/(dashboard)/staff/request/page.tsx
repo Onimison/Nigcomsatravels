@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { getMyRequests } from '@/lib/actions/requests.actions'
 import { listAirports } from '@/lib/actions/airports.actions'
+import { getFxRateOverride } from '@/lib/actions/rates.actions'
 import { latestReason, type StaffRequestRow } from '@/components/staff/request-card'
 import { RequestFormClient } from '@/components/staff/request-form-client'
 import type { ResubmitTarget } from '@/components/staff/travel-request-form'
@@ -17,8 +18,13 @@ export default async function RequestTravelPage({
   searchParams: Promise<{ resubmit?: string }>
 }) {
   const { resubmit } = await searchParams
-  const [{ data }, { data: airports }] = await Promise.all([getMyRequests(), listAirports()])
+  const [{ data }, { data: airports }, fxRateResult] = await Promise.all([
+    getMyRequests(),
+    listAirports(),
+    getFxRateOverride(),
+  ])
   const requests = (data ?? []) as StaffRequestRow[]
+  const fxRate = fxRateResult.success && fxRateResult.data ? Number(fxRateResult.data.value) : null
 
   let resubmitTarget: ResubmitTarget | null = null
   if (resubmit) {
@@ -48,7 +54,7 @@ export default async function RequestTravelPage({
       />
 
       <section className="max-w-2xl rounded-xl border border-gray-200 bg-white p-6">
-        <RequestFormClient airports={airports} resubmitTarget={resubmitTarget} />
+        <RequestFormClient airports={airports} resubmitTarget={resubmitTarget} fxRate={fxRate} />
       </section>
     </div>
   )
