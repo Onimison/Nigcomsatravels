@@ -575,7 +575,11 @@ export async function hrReviewRequest(input: HRReviewInput): Promise<ActionResul
     }
   }
 
+  // '/hr' (home preview), '/hr/requests' (queue list), '/hr/history'
+  // (recently processed) all show this request in one shape or another.
   revalidatePath('/hr')
+  revalidatePath('/hr/requests')
+  revalidatePath('/hr/history')
   return { success: true }
 }
 
@@ -630,6 +634,8 @@ export async function hrRejectRequest(input: HRRejectInput): Promise<ActionResul
   }
 
   revalidatePath('/hr')
+  revalidatePath('/hr/requests')
+  revalidatePath('/hr/history')
   return { success: true }
 }
 

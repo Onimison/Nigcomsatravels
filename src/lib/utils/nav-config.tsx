@@ -40,7 +40,10 @@ export const NAV_ITEMS: Record<UserRole, NavItem[]> = {
     { href: '/staff/profile', label: 'Profile', icon: <UserIcon /> },
   ],
   hr: [
-    { href: '/hr', label: 'Review Queue', icon: <ClockIcon />, badgeKey: 'pending' },
+    { href: '/hr', label: 'Dashboard', icon: <GridIcon /> },
+    { href: '/hr/requests', label: 'Review Queue', icon: <ClockIcon />, badgeKey: 'pending' },
+    { href: '/hr/history', label: 'Recently Processed', icon: <HistoryIcon /> },
+    { href: '/hr/rates', label: 'Flight Prices', icon: <CashIcon /> },
   ],
   md: [
     { href: '/md', label: 'Approvals', icon: <ClockIcon />, badgeKey: 'pending' },

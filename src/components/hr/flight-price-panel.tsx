@@ -1,8 +1,9 @@
 /**
- * Always-visible Flight Price Reference widget for the HR dashboard — so HR
- * can sanity-check a number without opening each request individually
- * (UI_UX_DESIGN_PLAN.md §4). Server component: data is fetched once in
- * hr/page.tsx and passed straight through, no client interactivity needed.
+ * Full Flight Price Reference table — so HR can sanity-check a number
+ * without opening each request individually (UI_UX_DESIGN_PLAN.md §4).
+ * Server component: data is fetched once in hr/rates/page.tsx and passed
+ * straight through, no client interactivity needed. The page around this
+ * component supplies the title/description via PageHeader.
  */
 
 import { formatStaleness, isStale, usdToNgn } from '@/lib/utils/formatting'
@@ -37,15 +38,10 @@ export function FlightPricePanel({ rates, fxRate }: { rates: RateReferenceWithLe
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">Flight Price Reference</h2>
-      <p className="mt-1 text-sm text-gray-500">
-        Current tracked flight prices — check here before overriding a suggested rate. Managed by Admin.
-      </p>
-
       {domestic.length === 0 && international.length === 0 ? (
-        <p className="mt-4 text-sm text-gray-500">No flight prices tracked yet.</p>
+        <p className="text-sm text-gray-500">No flight prices tracked yet.</p>
       ) : (
-        <div className="mt-3 grid gap-6 sm:grid-cols-2">
+        <div className="grid gap-6 sm:grid-cols-2">
           <div>
             <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
               Domestic ({domestic.length})

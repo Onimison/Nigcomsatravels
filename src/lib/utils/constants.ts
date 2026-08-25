@@ -3,7 +3,7 @@
  * PRD Section 4 — Status Enum mapped to UI-friendly labels.
  */
 
-import type { RequestStatus, ApprovalStatus } from '@/types/database'
+import type { RequestStatus, ApprovalStatus, UserRole } from '@/types/database'
 
 // ============================================================
 // Status Label Mappings (PRD Section 4)
@@ -60,6 +60,21 @@ export const ROLE_DASHBOARD_PATHS = {
   hr: '/hr',
   md: '/md',
   admin: '/admin',
+} as const
+
+/**
+ * Route protection matrix — the single source of truth for who can open
+ * which dashboard section. Read by both `src/proxy.ts` (blocks the request
+ * before any rendering happens) and `requireDashboardAccess()` in
+ * `src/lib/utils/auth-guard.ts` (defense-in-depth server check, mirrored
+ * by RLS underneath). Keep these two consumers in sync by editing this map
+ * only — never hand-write a role list in either place.
+ */
+export const ROUTE_ACCESS: Record<keyof typeof ROLE_DASHBOARD_PATHS, readonly UserRole[]> = {
+  staff: ['staff', 'admin'],
+  hr: ['hr', 'admin'],
+  md: ['md', 'admin'],
+  admin: ['admin'],
 } as const
 
 // ============================================================

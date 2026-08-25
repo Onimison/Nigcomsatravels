@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
+import { redirect } from 'next/navigation'
 import { getMyRequests } from '@/lib/actions/requests.actions'
+import { requireDashboardAccess } from '@/lib/utils/auth-guard'
 import type { StaffRequestRow } from '@/components/staff/request-card'
 import { TravelHistory } from '@/components/staff/travel-history'
 import { PageHeader } from '@/components/ui/page-header'
@@ -10,6 +12,11 @@ export const metadata: Metadata = {
 }
 
 export default async function TravelHistoryPage() {
+  const auth = await requireDashboardAccess('staff')
+  if (!auth.authorized) {
+    redirect('/')
+  }
+
   const { data } = await getMyRequests()
 
   return (

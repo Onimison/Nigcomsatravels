@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
-import { requireRole } from '@/lib/utils/auth-guard'
+import { requireDashboardAccess } from '@/lib/utils/auth-guard'
 import { getPendingMDRequests, getMDHistory } from '@/lib/actions/requests.actions'
 import { MDDashboard } from '@/components/md/md-dashboard'
 import { PageHeader } from '@/components/ui/page-header'
@@ -21,11 +21,11 @@ export const metadata: Metadata = {
  * surrounding stat tiles (UI_UX_DESIGN_PLAN.md §3.4).
  */
 export default async function MDDashboardPage() {
-  const auth = await requireRole('md', 'admin')
+  const auth = await requireDashboardAccess('md')
   if (!auth.authorized) {
-    // Friendly redirect for a role that simply isn't MD — RLS is the real
-    // boundary (PRD Section 7.1); the root page re-routes to their own
-    // dashboard based on their actual role.
+    // Belt-and-suspenders — src/proxy.ts already blocks a wrong-role visit
+    // to this route with a 404 before this component ever runs. RLS
+    // underneath is the real boundary (PRD Section 7.1).
     redirect('/')
   }
 

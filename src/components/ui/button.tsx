@@ -5,7 +5,8 @@
  * port, per IMPLEMENTATION_PLAN.md §4.
  */
 
-import type { ButtonHTMLAttributes } from 'react'
+import Link from 'next/link'
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes } from 'react'
 
 type Variant = 'primary' | 'success' | 'danger' | 'outline' | 'secondary'
 
@@ -17,6 +18,9 @@ const VARIANT_CLASSES: Record<Variant, string> = {
   secondary: 'border border-gray-200 text-gray-700 hover:bg-gray-100',
 }
 
+const BASE_CLASSES =
+  'flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20'
+
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant
 }
@@ -25,8 +29,23 @@ export function Button({ variant = 'primary', type = 'button', className = '', .
   return (
     <button
       type={type}
-      className={`flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60 ${VARIANT_CLASSES[variant]} ${className}`}
+      className={`${BASE_CLASSES} disabled:cursor-not-allowed disabled:opacity-60 ${VARIANT_CLASSES[variant]} ${className}`}
       {...props}
     />
   )
+}
+
+interface LinkButtonProps extends AnchorHTMLAttributes<HTMLAnchorElement> {
+  href: string
+  variant?: Variant
+}
+
+/**
+ * A same-styled `<Link>` for when the action navigates rather than submits
+ * — e.g. a Card's "View all" action. Deliberately not a `<Button>` wrapping
+ * a `<Link>` (or vice versa): nesting an interactive `<button>` inside an
+ * `<a>` is invalid HTML and confuses screen readers.
+ */
+export function LinkButton({ variant = 'primary', className = '', ...props }: LinkButtonProps) {
+  return <Link className={`${BASE_CLASSES} ${VARIANT_CLASSES[variant]} ${className}`} {...props} />
 }

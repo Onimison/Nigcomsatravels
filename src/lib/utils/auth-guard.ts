@@ -9,6 +9,7 @@ import 'server-only'
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { ROUTE_ACCESS } from '@/lib/utils/constants'
 import type { UserRole } from '@/types/database'
 
 export type AuthorizationResult =
@@ -46,4 +47,14 @@ export async function requireRole(...roles: UserRole[]): Promise<AuthorizationRe
 /** Verify the current session belongs to an admin. Used by all Admin Dashboard actions (PRD Section 3.4). */
 export async function requireAdmin(): Promise<AuthorizationResult> {
   return requireRole('admin')
+}
+
+/**
+ * Verify the current session is allowed into a given dashboard section,
+ * per the `ROUTE_ACCESS` matrix in `constants.ts`. This is the page-level
+ * defense-in-depth check — `src/proxy.ts` enforces the same matrix ahead
+ * of rendering so a wrong-role visit never gets this far.
+ */
+export async function requireDashboardAccess(section: keyof typeof ROUTE_ACCESS): Promise<AuthorizationResult> {
+  return requireRole(...ROUTE_ACCESS[section])
 }

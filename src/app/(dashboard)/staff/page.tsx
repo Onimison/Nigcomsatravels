@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
+import { redirect } from 'next/navigation'
 import { getMyRequests } from '@/lib/actions/requests.actions'
 import { createClient } from '@/lib/supabase/server'
+import { requireDashboardAccess } from '@/lib/utils/auth-guard'
 import { StaffDashboard } from '@/components/staff/staff-dashboard'
 import type { StaffRequestRow } from '@/components/staff/request-card'
 
@@ -16,6 +18,14 @@ export const metadata: Metadata = {
  * overview, no request form on this page (see /staff/request).
  */
 export default async function StaffDashboardPage() {
+  const auth = await requireDashboardAccess('staff')
+  if (!auth.authorized) {
+    // Belt-and-suspenders — src/proxy.ts already blocks a wrong-role visit
+    // to this route with a 404 before this component ever runs. RLS
+    // underneath is the real boundary (PRD Section 7.1).
+    redirect('/')
+  }
+
   const supabase = await createClient()
   const {
     data: { user },

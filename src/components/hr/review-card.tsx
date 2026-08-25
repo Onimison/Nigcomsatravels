@@ -1,24 +1,23 @@
 'use client'
 
 /**
- * HR Dashboard orchestrator — PRD Section 3.2
- *
- * Renders the pending-HR-review queue (filterable) plus a read-only
- * "Recently Processed" history, built from getPendingHRRequests() /
- * getHRHistory() (both fetched server-side in page.tsx).
+ * The single-request review form — allowance entry, live fare lookup,
+ * forward/reject. Lives entirely on its own page (`/hr/requests/[id]`),
+ * one request at a time — not one instance per row in a long list, which is
+ * what `hr-request-queue.tsx` used to render before the queue became a
+ * compact, clickable list (todays-task.md: "clicking each one should only
+ * open the particular review").
  */
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { hrReviewRequest, hrRejectRequest, getRateSuggestionForRequest } from '@/lib/actions/requests.actions'
-import { StatusBadge } from '@/components/ui/status-badge'
-import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { CashIcon } from '@/components/ui/icons'
 import { Money } from '@/components/ui/money'
 import { FlightLookupCard } from '@/components/hr/flight-lookup-card'
+import { departmentName, staffName } from '@/components/hr/request-row'
 import {
   formatDate,
   formatNGN,
@@ -28,9 +27,7 @@ import {
   calculateFinalCost,
   formatStaleness,
 } from '@/lib/utils/formatting'
-import type { TravelRequestForHR, TravelRequestForMD } from '@/types/database'
-
-type SortKey = 'earliest' | 'department' | 'destination'
+import type { TravelRequestForHR } from '@/types/database'
 
 type AllowanceField = 'allowance_local' | 'allowance_flight' | 'allowance_taxi' | 'accommodation' | 'per_diem'
 
@@ -50,27 +47,7 @@ const EMPTY_ALLOWANCES: Record<AllowanceField, string> = {
   per_diem: '',
 }
 
-function departmentName(row: TravelRequestForHR): string {
-  return row.staff?.department?.name ?? 'Unassigned'
-}
-
-function staffName(row: { staff: { first_name: string | null; surname: string | null; email: string } | null }): string {
-  if (!row.staff) return 'Unknown staff'
-  return [row.staff.first_name, row.staff.surname].filter(Boolean).join(' ') || row.staff.email
-}
-
-function decisionReason(row: TravelRequestForMD): string | null {
-  const decisions = (row.approvals ?? []).filter(
-    (a) => a.status === 'hr_approved' || a.status === 'hr_rejected'
-  )
-  if (decisions.length === 0) return null
-  const latest = [...decisions].sort(
-    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-  )[0]
-  return latest?.reason ?? null
-}
-
-function ReviewCard({ row, fxRate }: { row: TravelRequestForHR; fxRate: number | null }) {
+export function ReviewCard({ row, fxRate }: { row: TravelRequestForHR; fxRate: number | null }) {
   const router = useRouter()
   const coveragePercent = row.staff?.level?.coverage_percent ?? 100
 
@@ -175,14 +152,16 @@ function ReviewCard({ row, fxRate }: { row: TravelRequestForHR; fxRate: number |
       per_diem: ngnToUsd(parsedAllowancesNgn.per_diem, fxRate),
       hr_note: note.trim() || undefined,
     })
-    setPendingAction(null)
 
     if (!result.success) {
+      setPendingAction(null)
       setError(result.error ?? 'Something went wrong. Please try again.')
       return
     }
 
-    router.refresh()
+    // Handled — this request is no longer awaiting HR review, so there's
+    // nothing left to show here. Back to the queue.
+    router.push('/hr/requests')
   }
 
   async function handleReject() {
@@ -195,14 +174,14 @@ function ReviewCard({ row, fxRate }: { row: TravelRequestForHR; fxRate: number |
 
     setPendingAction('reject')
     const result = await hrRejectRequest({ request_id: row.id, reason: note.trim() })
-    setPendingAction(null)
 
     if (!result.success) {
+      setPendingAction(null)
       setError(result.error ?? 'Something went wrong. Please try again.')
       return
     }
 
-    router.refresh()
+    router.push('/hr/requests')
   }
 
   return (
@@ -347,146 +326,6 @@ function ReviewCard({ row, fxRate }: { row: TravelRequestForHR; fxRate: number |
           </Button>
         </div>
       </div>
-    </div>
-  )
-}
-
-function HistoryRow({ row }: { row: TravelRequestForMD }) {
-  const reason = decisionReason(row)
-  return (
-    <div className="rounded-lg border border-gray-200 p-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="font-medium text-gray-900">
-            {row.origin} → {row.destination}
-          </p>
-          <p className="mt-0.5 text-xs text-gray-500">
-            {staffName(row)} · {row.staff?.department?.name ?? 'Unassigned'}
-          </p>
-          <p className="mt-0.5 text-xs text-gray-500">
-            {formatDate(row.depart_date)} – {formatDate(row.return_date)}
-          </p>
-        </div>
-        <div className="text-right">
-          <StatusBadge status={row.status} />
-          <div className="mt-1">
-            <Money
-              ngn={row.final_cost != null && row.locked_fx_rate != null ? usdToNgn(row.final_cost, row.locked_fx_rate) : null}
-              usd={row.final_cost}
-              align="right"
-            />
-          </div>
-        </div>
-      </div>
-      {reason && row.status === 'hr_rejected' && (
-        <p className="mt-2 text-sm text-gray-600">
-          Reason: <span className="italic">“{reason}”</span>
-        </p>
-      )}
-    </div>
-  )
-}
-
-export function HRDashboard({
-  pending,
-  history,
-  fxRate,
-}: {
-  pending: TravelRequestForHR[]
-  history: TravelRequestForMD[]
-  fxRate: number | null
-}) {
-  const [department, setDepartment] = useState('all')
-  const [destination, setDestination] = useState('')
-  const [sortKey, setSortKey] = useState<SortKey>('earliest')
-
-  const departments = useMemo(() => [...new Set(pending.map(departmentName))].sort(), [pending])
-
-  const visible = useMemo(() => {
-    const filtered = pending.filter((row) => {
-      if (department !== 'all' && departmentName(row) !== department) return false
-      if (destination.trim() && !row.destination.toLowerCase().includes(destination.trim().toLowerCase())) {
-        return false
-      }
-      return true
-    })
-
-    return [...filtered].sort((a, b) => {
-      switch (sortKey) {
-        case 'department':
-          return departmentName(a).localeCompare(departmentName(b))
-        case 'destination':
-          return a.destination.localeCompare(b.destination)
-        case 'earliest':
-        default:
-          return a.depart_date.localeCompare(b.depart_date)
-      }
-    })
-  }, [pending, department, destination, sortKey])
-
-  const filterRow = (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="w-44">
-        <Select
-          value={department}
-          onChange={(e) => setDepartment(e.target.value)}
-          aria-label="Filter by department"
-        >
-          <option value="all">All departments</option>
-          {departments.map((d) => (
-            <option key={d} value={d}>{d}</option>
-          ))}
-        </Select>
-      </div>
-      <div className="w-48">
-        <Input
-          value={destination}
-          onChange={(e) => setDestination(e.target.value)}
-          placeholder="Filter by destination"
-          aria-label="Filter by destination"
-        />
-      </div>
-      <div className="w-56">
-        <Select
-          value={sortKey}
-          onChange={(e) => setSortKey(e.target.value as SortKey)}
-          aria-label="Sort requests"
-        >
-          <option value="earliest">Sort: Earliest Departure</option>
-          <option value="department">Sort: Department</option>
-          <option value="destination">Sort: Destination</option>
-        </Select>
-      </div>
-    </div>
-  )
-
-  return (
-    <div className="space-y-6">
-      <Card title={`Awaiting Review (${visible.length})`} action={filterRow}>
-        {visible.length === 0 ? (
-          <p className="text-sm text-gray-500">
-            {pending.length === 0 ? 'No requests pending HR review.' : 'No requests match the current filters.'}
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {visible.map((row) => (
-              <ReviewCard key={row.id} row={row} fxRate={fxRate} />
-            ))}
-          </div>
-        )}
-      </Card>
-
-      <Card title="Recently Processed">
-        {history.length === 0 ? (
-          <p className="text-sm text-gray-500">Forwarded and rejected requests will appear here.</p>
-        ) : (
-          <div className="space-y-3">
-            {history.map((row) => (
-              <HistoryRow key={row.id} row={row} />
-            ))}
-          </div>
-        )}
-      </Card>
     </div>
   )
 }

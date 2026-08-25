@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
-import { requireRole } from '@/lib/utils/auth-guard'
+import { requireDashboardAccess } from '@/lib/utils/auth-guard'
 import { listStaff } from '@/lib/actions/staff.actions'
 import { listDepartments } from '@/lib/actions/departments.actions'
 import { listLevels } from '@/lib/actions/levels.actions'
@@ -30,11 +30,11 @@ export const metadata: Metadata = {
  * - Department Management: still a placeholder, out of scope for this pass
  */
 export default async function AdminDashboardPage() {
-  const auth = await requireRole('admin')
+  const auth = await requireDashboardAccess('admin')
   if (!auth.authorized) {
-    // Friendly redirect for a role that simply isn't admin — RLS is the real
-    // boundary (PRD Section 7.1); the root page re-routes to their own
-    // dashboard based on their actual role.
+    // Belt-and-suspenders — src/proxy.ts already blocks a wrong-role visit
+    // to this route with a 404 before this component ever runs. RLS
+    // underneath is the real boundary (PRD Section 7.1).
     redirect('/')
   }
 

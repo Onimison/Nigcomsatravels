@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
+import { redirect } from 'next/navigation'
 import { getMyProfile } from '@/lib/actions/staff.actions'
+import { requireDashboardAccess } from '@/lib/utils/auth-guard'
 import { PageHeader } from '@/components/ui/page-header'
 import type { StaffWithDetails } from '@/types/database'
 
@@ -22,6 +24,11 @@ function initials(staff: StaffWithDetails): string {
 }
 
 export default async function ProfilePage() {
+  const auth = await requireDashboardAccess('staff')
+  if (!auth.authorized) {
+    redirect('/')
+  }
+
   const { data } = await getMyProfile()
   const staff = data as StaffWithDetails | null
 

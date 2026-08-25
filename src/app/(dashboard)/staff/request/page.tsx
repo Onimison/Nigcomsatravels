@@ -1,7 +1,9 @@
 import type { Metadata } from 'next'
+import { redirect } from 'next/navigation'
 import { getMyRequests } from '@/lib/actions/requests.actions'
 import { listAirports } from '@/lib/actions/airports.actions'
 import { getFxRateOverride } from '@/lib/actions/rates.actions'
+import { requireDashboardAccess } from '@/lib/utils/auth-guard'
 import { latestReason, type StaffRequestRow } from '@/components/staff/request-card'
 import { RequestFormClient } from '@/components/staff/request-form-client'
 import type { ResubmitTarget } from '@/components/staff/travel-request-form'
@@ -17,6 +19,11 @@ export default async function RequestTravelPage({
 }: {
   searchParams: Promise<{ resubmit?: string }>
 }) {
+  const auth = await requireDashboardAccess('staff')
+  if (!auth.authorized) {
+    redirect('/')
+  }
+
   const { resubmit } = await searchParams
   const [{ data }, { data: airports }, fxRateResult] = await Promise.all([
     getMyRequests(),

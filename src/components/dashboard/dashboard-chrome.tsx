@@ -10,6 +10,7 @@ import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Sidebar } from './sidebar'
 import { Topbar } from './topbar'
+import { RouteProgress } from './route-progress'
 import { XIcon } from '@/components/ui/icons'
 import type { NavItem } from '@/lib/utils/nav-config'
 
@@ -40,6 +41,8 @@ export function DashboardChrome({
 
   return (
     <div className="flex h-screen bg-gray-50 dark:bg-gray-950">
+      <RouteProgress />
+
       {/* Desktop sidebar */}
       <aside className="hidden w-64 flex-shrink-0 border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 lg:block">
         <Sidebar {...sidebarProps} />
