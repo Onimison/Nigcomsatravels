@@ -41,3 +41,5 @@ supabase/.temp
 
 # team tasks
 team-task.md
+# desloppify local state
+.desloppify/
