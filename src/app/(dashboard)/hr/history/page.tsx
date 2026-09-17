@@ -37,7 +37,7 @@ export default async function HRHistoryPage() {
       )}
 
       <Card>
-        <HRHistory history={historyResult.data} />
+        <HRHistory history={historyResult.data ?? []} />
       </Card>
     </div>
   )

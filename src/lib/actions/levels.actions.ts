@@ -15,6 +15,7 @@ import {
   type UpdateLevelInput,
 } from '@/lib/validations/level.schema'
 import type { ActionResult } from '@/types/actions'
+import type { Level } from '@/types/database'
 
 export async function addLevel(input: CreateLevelInput): Promise<ActionResult> {
   return addAdminRow({
@@ -40,7 +41,7 @@ export async function editLevel(input: UpdateLevelInput): Promise<ActionResult> 
   })
 }
 
-export async function listLevels() {
+export async function listLevels(): Promise<ActionResult<Level[]>> {
   const supabase = await createClient()
   const { data, error } = await supabase.from('levels').select('*').order('name', { ascending: true })
 

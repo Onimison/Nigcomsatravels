@@ -15,6 +15,7 @@ import {
   type UpdateDepartmentInput,
 } from '@/lib/validations/department.schema'
 import type { ActionResult } from '@/types/actions'
+import type { Department } from '@/types/database'
 
 export async function addDepartment(input: CreateDepartmentInput): Promise<ActionResult> {
   return addAdminRow({
@@ -39,7 +40,7 @@ export async function editDepartment(input: UpdateDepartmentInput): Promise<Acti
   })
 }
 
-export async function listDepartments() {
+export async function listDepartments(): Promise<ActionResult<Department[]>> {
   const supabase = await createClient()
   const { data, error } = await supabase.from('departments').select('*').order('name', { ascending: true })
 

@@ -23,7 +23,14 @@ import {
 import { calculateFinalCost, calculateTotalRawAllowance, datesOverlap } from '@/lib/utils/formatting'
 import { FX_RATE_SETTING_KEY } from '@/lib/utils/constants'
 import { revalidatePath } from 'next/cache'
-import type { TravelMode, TravelRequestForHR, RateSuggestionResult } from '@/types/database'
+import type {
+  ApprovalTrailEntry,
+  TravelMode,
+  TravelRequest,
+  TravelRequestForHR,
+  TravelRequestForMD,
+  RateSuggestionResult,
+} from '@/types/database'
 import type { ActionResult } from '@/types/actions'
 
 // ============================================================
@@ -193,7 +200,9 @@ export async function resubmitRequest(
  * know what to fix before resubmitting).
  * PRD Section 3.1: Pending Requests list + Travel History.
  */
-export async function getMyRequests() {
+export async function getMyRequests(): Promise<
+  ActionResult<(TravelRequest & { approvals: ApprovalTrailEntry[] | null })[]>
+> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -215,7 +224,10 @@ export async function getMyRequests() {
  * and displays a non-binding estimate labeled 'Subject to HR verification.'
  * If no rate exists, shows 'No reference rate found; HR will compute manually.'"
  */
-export async function getRequestEstimate(destination: string, mode: TravelMode) {
+export async function getRequestEstimate(
+  destination: string,
+  mode: TravelMode
+): Promise<ActionResult<{ estimate: number; coveragePercent: number } | null>> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -305,7 +317,7 @@ const HR_REQUEST_SELECT = `*,
  *   (`previous_version_id` set), the reason HR/MD sent the prior version
  *   back — so HR has resubmission context without a second click.
  */
-export async function getPendingHRRequests() {
+export async function getPendingHRRequests(): Promise<ActionResult<TravelRequestForHR[]>> {
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -369,7 +381,7 @@ export async function getPendingHRRequests() {
  * HR is allowed to see the same columns per the `HR read all requests`
  * RLS policy, and the UI needs the same decision-reason lookup.
  */
-export async function getHRHistory() {
+export async function getHRHistory(): Promise<ActionResult<TravelRequestForMD[]>> {
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -393,7 +405,7 @@ export async function getHRHistory() {
  */
 export async function getRateSuggestionForRequest(
   requestId: string
-): Promise<{ success: boolean; error?: string; data: RateSuggestionResult | null }> {
+): Promise<ActionResult<RateSuggestionResult | null>> {
   const auth = await requireRole('hr', 'admin')
   if (!auth.authorized) return { success: false, error: auth.error, data: null }
 
@@ -642,7 +654,7 @@ export async function hrRejectRequest(input: HRRejectInput): Promise<ActionResul
  * the queue is small enough that a materialized view isn't warranted yet
  * (PRD Section 6.1 applies the same reasoning to reporting).
  */
-export async function getPendingMDRequests() {
+export async function getPendingMDRequests(): Promise<ActionResult<TravelRequestForMD[]>> {
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -661,7 +673,7 @@ export async function getPendingMDRequests() {
  * cost snapshots." Mirrors the MD read RLS policy exactly, so this never
  * returns more than MD is already allowed to see.
  */
-export async function getMDHistory() {
+export async function getMDHistory(): Promise<ActionResult<TravelRequestForMD[]>> {
   const supabase = await createClient()
 
   const { data, error } = await supabase

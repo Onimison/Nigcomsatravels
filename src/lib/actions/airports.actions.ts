@@ -10,12 +10,13 @@
 
 import { createClient } from '@/lib/supabase/server'
 import type { AirportOption } from '@/types/database'
+import type { ActionResult } from '@/types/actions'
 
 /**
  * Active airports for the request-form dropdown, ordered domestic-first then
  * alphabetically — which is also the order the two `<optgroup>`s render in.
  */
-export async function listAirports() {
+export async function listAirports(): Promise<ActionResult<AirportOption[]>> {
   const supabase = await createClient()
 
   const { data, error } = await supabase

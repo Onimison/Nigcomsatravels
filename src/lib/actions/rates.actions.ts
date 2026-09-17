@@ -18,6 +18,7 @@ import {
 import { FX_RATE_SETTING_KEY } from '@/lib/utils/constants'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/actions'
+import type { AppSetting, RateOverrideWithStaff, RateReferenceWithLevel, RateSuggestion } from '@/types/database'
 
 /**
  * `updated_at`/`updated_by` stamping shared by addRateReference and
@@ -37,7 +38,7 @@ async function stampedBy() {
 // Rate Reference (Master Rate Table)
 // ============================================================
 
-export async function listRateReferences() {
+export async function listRateReferences(): Promise<ActionResult<RateReferenceWithLevel[]>> {
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -80,7 +81,7 @@ export async function updateRateReference(input: UpdateRateReferenceInput): Prom
  * Used by the Admin "Flight Price Reference" panel and the HR dashboard's
  * always-visible reference widget.
  */
-export async function listFlightPriceReference() {
+export async function listFlightPriceReference(): Promise<ActionResult<RateReferenceWithLevel[]>> {
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -98,7 +99,7 @@ export async function listFlightPriceReference() {
 // Rate Overrides (Audit Trail)
 // ============================================================
 
-export async function listRateOverrides() {
+export async function listRateOverrides(): Promise<ActionResult<RateOverrideWithStaff[]>> {
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -195,7 +196,7 @@ export async function promoteOverrideToMaster(overrideId: string): Promise<Actio
 // Rate Suggestions (AI agent write-target — read-only here)
 // ============================================================
 
-export async function listRateSuggestions() {
+export async function listRateSuggestions(): Promise<ActionResult<RateSuggestion[]>> {
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -211,7 +212,7 @@ export async function listRateSuggestions() {
 // FX Rate (PRD Section 5.2)
 // ============================================================
 
-export async function getFxRateOverride() {
+export async function getFxRateOverride(): Promise<ActionResult<Pick<AppSetting, 'value' | 'updated_at'> | null>> {
   const supabase = await createClient()
 
   const { data, error } = await supabase

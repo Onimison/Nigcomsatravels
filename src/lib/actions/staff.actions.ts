@@ -20,6 +20,7 @@ import {
 } from '@/lib/validations/staff.schema'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types/actions'
+import type { StaffWithDetails } from '@/types/database'
 
 /**
  * Add a new staff member.
@@ -131,7 +132,7 @@ export async function deactivateStaff(staffId: string): Promise<ActionResult> {
  * Used by /staff/profile — self-service, any authenticated staff member can
  * read their own row (RLS: "Staff can view own record").
  */
-export async function getMyProfile() {
+export async function getMyProfile(): Promise<ActionResult<StaffWithDetails | null>> {
   const supabase = await createClient()
   const {
     data: { user },
@@ -153,7 +154,7 @@ export async function getMyProfile() {
  * List all staff members with department and level details.
  * Used by the Admin Dashboard staff management table.
  */
-export async function listStaff() {
+export async function listStaff(): Promise<ActionResult<StaffWithDetails[]>> {
   const auth = await requireAdmin()
   if (!auth.authorized) return { success: false, error: auth.error, data: [] }
 

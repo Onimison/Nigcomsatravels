@@ -30,7 +30,7 @@ export default async function HRRequestDetailPage({ params }: { params: Promise<
 
   const { id } = await params
   const [pendingResult, fxRateResult] = await Promise.all([getPendingHRRequests(), getFxRateOverride()])
-  const row = pendingResult.data.find((r) => r.id === id)
+  const row = pendingResult.data?.find((r) => r.id === id)
 
   // Not pending — already handled (by this HR user or someone else while
   // this page sat open in a tab) or the id is just wrong. Either way there's

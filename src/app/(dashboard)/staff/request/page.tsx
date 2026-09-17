@@ -31,6 +31,7 @@ export default async function RequestTravelPage({
     getFxRateOverride(),
   ])
   const requests = (data ?? []) as StaffRequestRow[]
+  const airportOptions = airports ?? []
   const fxRate = fxRateResult.success && fxRateResult.data ? Number(fxRateResult.data.value) : null
 
   let resubmitTarget: ResubmitTarget | null = null
@@ -61,7 +62,7 @@ export default async function RequestTravelPage({
       />
 
       <section className="max-w-2xl rounded-xl border border-gray-200 bg-white p-6">
-        <RequestFormClient airports={airports} resubmitTarget={resubmitTarget} fxRate={fxRate} />
+        <RequestFormClient airports={airportOptions} resubmitTarget={resubmitTarget} fxRate={fxRate} />
       </section>
     </div>
   )

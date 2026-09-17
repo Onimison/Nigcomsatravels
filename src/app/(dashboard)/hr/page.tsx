@@ -10,8 +10,6 @@ import { Card } from '@/components/ui/card'
 import { StatTile } from '@/components/ui/stat-tile'
 import { LinkButton } from '@/components/ui/button'
 import { ClockIcon, HistoryIcon, XCircleIcon, ArrowRightIcon } from '@/components/ui/icons'
-import type { RateReferenceWithLevel } from '@/types/database'
-
 export const metadata: Metadata = {
   title: 'HR Dashboard — NIGCOMSAT Travel',
   description: 'Review and process travel requests',
@@ -42,14 +40,16 @@ export default async function HRDashboardPage() {
   ])
 
   const fxRate = fxRateResult.success && fxRateResult.data ? Number(fxRateResult.data.value) : null
+  const pending = pendingResult.data ?? []
+  const history = historyResult.data ?? []
 
-  const resubmissionCount = pendingResult.data.filter((r) => r.previousRejectionReason).length
-  const processedToday = historyResult.data.filter((r) => {
+  const resubmissionCount = pending.filter((r) => r.previousRejectionReason).length
+  const processedToday = history.filter((r) => {
     const updated = new Date(r.updated_at).toDateString()
     return updated === new Date().toDateString()
   }).length
 
-  const recentRequests = [...pendingResult.data]
+  const recentRequests = [...pending]
     .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime())
     .slice(0, 5)
 
@@ -69,13 +69,13 @@ export default async function HRDashboardPage() {
       )}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
-        <StatTile icon={ClockIcon} value={pendingResult.data.length} label="Awaiting Review" tone="amber" />
+        <StatTile icon={ClockIcon} value={pending.length} label="Awaiting Review" tone="amber" />
         <StatTile icon={XCircleIcon} value={resubmissionCount} label="Resubmissions in Queue" tone="red" />
         <StatTile icon={HistoryIcon} value={processedToday} label="Processed Today" tone="green" />
       </div>
 
       <Card
-        title={`Awaiting Review (${pendingResult.data.length})`}
+        title={`Awaiting Review (${pending.length})`}
         description="Most recently submitted first"
         action={
           <LinkButton href="/hr/requests" variant="outline" className="gap-1.5">
@@ -95,7 +95,7 @@ export default async function HRDashboardPage() {
           </LinkButton>
         }
       >
-        <FlightPricePreview rates={(flightRatesResult.data ?? []) as RateReferenceWithLevel[]} fxRate={fxRate} />
+        <FlightPricePreview rates={flightRatesResult.data ?? []} fxRate={fxRate} />
       </Card>
     </div>
   )

@@ -34,13 +34,16 @@ export default async function MDDashboardPage() {
     getMDHistory(),
   ])
 
-  const approvedThisMonth = historyResult.data.filter((r) => {
+  const pending = pendingResult.data ?? []
+  const history = historyResult.data ?? []
+
+  const approvedThisMonth = history.filter((r) => {
     if (r.status !== 'approved') return false
     const updated = new Date(r.updated_at)
     const now = new Date()
     return updated.getMonth() === now.getMonth() && updated.getFullYear() === now.getFullYear()
   }).length
-  const rejectedCount = historyResult.data.filter(
+  const rejectedCount = history.filter(
     (r) => r.status === 'md_rejected' || r.status === 'rejected_final'
   ).length
 
@@ -60,12 +63,12 @@ export default async function MDDashboardPage() {
       )}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
-        <StatTile icon={ClockIcon} value={pendingResult.data.length} label="Pending Approval" tone="amber" />
+        <StatTile icon={ClockIcon} value={pending.length} label="Pending Approval" tone="amber" />
         <StatTile icon={CheckCircleIcon} value={approvedThisMonth} label="Approved This Month" tone="green" />
         <StatTile icon={XCircleIcon} value={rejectedCount} label="Rejected" tone="red" />
       </div>
 
-      <MDDashboard pending={pendingResult.data} history={historyResult.data} />
+      <MDDashboard pending={pending} history={history} />
     </div>
   )
 }

@@ -39,7 +39,7 @@ export default async function HRRequestsPage() {
         </p>
       )}
 
-      <HRRequestQueue pending={pendingResult.data} />
+      <HRRequestQueue pending={pendingResult.data ?? []} />
     </div>
   )
 }
