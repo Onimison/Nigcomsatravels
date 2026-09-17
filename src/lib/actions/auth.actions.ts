@@ -138,40 +138,45 @@ export async function sendOtp(input: SendOtpInput): Promise<ActionResult> {
  * (a Client Component) does the navigation once it has `redirectTo`.
  */
 export async function verifyOtp(input: VerifyOtpInput): Promise<VerifyOtpResult> {
-  const parsed = verifyOtpSchema.safeParse(input)
-  if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0]?.message ?? 'Enter the 6-digit code' }
+  try {
+    const parsed = verifyOtpSchema.safeParse(input)
+    if (!parsed.success) {
+      return { success: false, error: parsed.error.issues[0]?.message ?? 'Enter the 6-digit code' }
+    }
+    const { email, token } = parsed.data
+
+    const supabase = await createClient()
+    const { data, error } = await supabase.auth.verifyOtp({ email, token, type: 'email' })
+
+    if (error || !data.user) {
+      await logAuthAttempt(email, false)
+      return { success: false, error: error?.message ?? 'Invalid or expired code. Please try again.' }
+    }
+
+    // Re-check role + active status now that we have a session. Re-checking
+    // `active` here (not just at sendOtp) closes the gap where an admin
+    // deactivates someone in the ~10 minutes between them requesting and
+    // entering a code.
+    const { data: staff } = await supabase
+      .from('staff')
+      .select('role, active')
+      .eq('id', data.user.id)
+      .single()
+
+    if (!staff || !staff.active) {
+      await logAuthAttempt(email, false)
+      await supabase.auth.signOut()
+      return { success: false, error: 'This account has been deactivated. Contact your administrator.' }
+    }
+
+    await logAuthAttempt(email, true)
+
+    const role = staff.role as UserRole
+    return { success: true, redirectTo: ROLE_DASHBOARD_PATHS[role] }
+  } catch (err) {
+    console.error('[verifyOtp] unexpected error:', err)
+    return { success: false, error: 'An unexpected error occurred. Please try again.' }
   }
-  const { email, token } = parsed.data
-
-  const supabase = await createClient()
-  const { data, error } = await supabase.auth.verifyOtp({ email, token, type: 'email' })
-
-  if (error || !data.user) {
-    await logAuthAttempt(email, false)
-    return { success: false, error: error?.message ?? 'Invalid or expired code. Please try again.' }
-  }
-
-  // Re-check role + active status now that we have a session. Re-checking
-  // `active` here (not just at sendOtp) closes the gap where an admin
-  // deactivates someone in the ~10 minutes between them requesting and
-  // entering a code.
-  const { data: staff } = await supabase
-    .from('staff')
-    .select('role, active')
-    .eq('id', data.user.id)
-    .single()
-
-  if (!staff || !staff.active) {
-    await logAuthAttempt(email, false)
-    await supabase.auth.signOut()
-    return { success: false, error: 'This account has been deactivated. Contact your administrator.' }
-  }
-
-  await logAuthAttempt(email, true)
-
-  const role = staff.role as UserRole
-  return { success: true, redirectTo: ROLE_DASHBOARD_PATHS[role] }
 }
 
 /**
