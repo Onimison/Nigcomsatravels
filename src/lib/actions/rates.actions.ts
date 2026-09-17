@@ -53,21 +53,6 @@ export async function listRateReferences() {
   return { success: true, data }
 }
 
-export async function getRateForDestination(destination: string, levelId: string, mode: string) {
-  const supabase = await createClient()
-
-  const { data, error } = await supabase
-    .from('rate_reference')
-    .select('*')
-    .eq('destination', destination)
-    .eq('level_id', levelId)
-    .eq('mode', mode)
-    .maybeSingle()
-
-  if (error) return { success: false, error: error.message, data: null }
-  return { success: true, data }
-}
-
 export async function addRateReference(input: RateReferenceInput): Promise<ActionResult> {
   return addAdminRow({
     input,
