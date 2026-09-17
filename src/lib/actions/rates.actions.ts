@@ -7,6 +7,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { requireAdmin } from '@/lib/utils/auth-guard'
+import { addAdminRow, editAdminRow } from '@/lib/utils/admin-crud'
 import {
   rateReferenceSchema,
   updateRateReferenceSchema,
@@ -16,6 +17,20 @@ import {
 } from '@/lib/validations/rates.schema'
 import { FX_RATE_SETTING_KEY } from '@/lib/utils/constants'
 import { revalidatePath } from 'next/cache'
+
+/**
+ * `updated_at`/`updated_by` stamping shared by addRateReference and
+ * updateRateReference — both need "who touched this row last, and when"
+ * for HR to trust a suggested rate (PRD 3.2's Flight Price Reference
+ * staleness note), which departments/levels have no equivalent of.
+ */
+async function stampedBy() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  return { updated_at: new Date().toISOString(), updated_by: user?.id ?? null }
+}
 
 export interface ActionResult {
   success: boolean
@@ -54,58 +69,24 @@ export async function getRateForDestination(destination: string, levelId: string
 }
 
 export async function addRateReference(input: RateReferenceInput): Promise<ActionResult> {
-  const auth = await requireAdmin()
-  if (!auth.authorized) return { success: false, error: auth.error }
-
-  const parsed = rateReferenceSchema.safeParse(input)
-  if (!parsed.success) return { success: false, error: parsed.error.message }
-
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  const { error } = await supabase
-    .from('rate_reference')
-    .insert({ ...parsed.data, updated_at: new Date().toISOString(), updated_by: user?.id ?? null })
-
-  if (error) {
-    return {
-      success: false,
-      error:
-        error.code === '23505'
-          ? 'A rate already exists for this destination, level, and mode'
-          : error.message,
-    }
-  }
-
-  revalidatePath('/admin')
-  return { success: true }
+  return addAdminRow({
+    input,
+    schema: rateReferenceSchema,
+    table: 'rate_reference',
+    toRow: async (parsed) => ({ ...parsed, ...(await stampedBy()) }),
+    uniqueViolationMessage: 'A rate already exists for this destination, level, and mode',
+    revalidate: ['/admin'],
+  })
 }
 
 export async function updateRateReference(input: UpdateRateReferenceInput): Promise<ActionResult> {
-  const auth = await requireAdmin()
-  if (!auth.authorized) return { success: false, error: auth.error }
-
-  const parsed = updateRateReferenceSchema.safeParse(input)
-  if (!parsed.success) return { success: false, error: parsed.error.message }
-
-  const { id, ...fields } = parsed.data
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  const { error } = await supabase
-    .from('rate_reference')
-    .update({ ...fields, updated_at: new Date().toISOString(), updated_by: user?.id ?? null })
-    .eq('id', id)
-
-  if (error) return { success: false, error: error.message }
-
-  revalidatePath('/admin')
-  revalidatePath('/hr')
-  return { success: true }
+  return editAdminRow({
+    input,
+    schema: updateRateReferenceSchema,
+    table: 'rate_reference',
+    toRow: async (fields) => ({ ...fields, ...(await stampedBy()) }),
+    revalidate: ['/admin', '/hr'],
+  })
 }
 
 // ============================================================

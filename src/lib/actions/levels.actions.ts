@@ -7,14 +7,13 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
-import { requireAdmin } from '@/lib/utils/auth-guard'
+import { addAdminRow, editAdminRow } from '@/lib/utils/admin-crud'
 import {
   createLevelSchema,
   updateLevelSchema,
   type CreateLevelInput,
   type UpdateLevelInput,
 } from '@/lib/validations/level.schema'
-import { revalidatePath } from 'next/cache'
 
 export interface ActionResult {
   success: boolean
@@ -22,45 +21,27 @@ export interface ActionResult {
 }
 
 export async function addLevel(input: CreateLevelInput): Promise<ActionResult> {
-  const auth = await requireAdmin()
-  if (!auth.authorized) return { success: false, error: auth.error }
-
-  const parsed = createLevelSchema.safeParse(input)
-  if (!parsed.success) return { success: false, error: parsed.error.message }
-
-  const supabase = await createClient()
-  const { error } = await supabase.from('levels').insert({
-    name: parsed.data.name,
-    coverage_percent: parsed.data.coverage_percent,
-    flight_class: parsed.data.flight_class ?? null,
+  return addAdminRow({
+    input,
+    schema: createLevelSchema,
+    table: 'levels',
+    toRow: (parsed) => ({
+      name: parsed.name,
+      coverage_percent: parsed.coverage_percent,
+      flight_class: parsed.flight_class ?? null,
+    }),
+    uniqueViolationMessage: 'A level with this name already exists',
+    revalidate: ['/admin'],
   })
-
-  if (error) {
-    return {
-      success: false,
-      error: error.code === '23505' ? 'A level with this name already exists' : error.message,
-    }
-  }
-
-  revalidatePath('/admin')
-  return { success: true }
 }
 
 export async function editLevel(input: UpdateLevelInput): Promise<ActionResult> {
-  const auth = await requireAdmin()
-  if (!auth.authorized) return { success: false, error: auth.error }
-
-  const parsed = updateLevelSchema.safeParse(input)
-  if (!parsed.success) return { success: false, error: parsed.error.message }
-
-  const { id, ...fields } = parsed.data
-  const supabase = await createClient()
-  const { error } = await supabase.from('levels').update(fields).eq('id', id)
-
-  if (error) return { success: false, error: error.message }
-
-  revalidatePath('/admin')
-  return { success: true }
+  return editAdminRow({
+    input,
+    schema: updateLevelSchema,
+    table: 'levels',
+    revalidate: ['/admin'],
+  })
 }
 
 export async function listLevels() {
