@@ -34,15 +34,12 @@ export function LoginForm() {
     let result: Awaited<ReturnType<typeof sendOtp>>
     try {
       result = await sendOtp({ email: trimmed })
-    } catch (clientErr) {
-      console.error('[login] sendOtp threw on client:', clientErr)
+    } catch {
       setIsSubmitting(false)
-      setError('An unexpected client-side error occurred.')
+      setError('An unexpected error occurred. Please try again.')
       return
     }
     setIsSubmitting(false)
-
-    console.log('[login] raw sendOtp result:', JSON.stringify(result))
 
     if (!result.success) {
       setError(result.error ?? 'Something went wrong. Please try again.')

@@ -88,16 +88,13 @@ export async function sendOtp(input: SendOtpInput): Promise<AuthActionResult> {
       .maybeSingle()
 
     if (staffError) {
-      console.error('[sendOtp] staff lookup error — full error object:', {
+      console.error('[sendOtp] staff lookup failed:', {
         message: staffError.message,
         details: staffError.details,
         hint: staffError.hint,
         code: staffError.code,
       })
-      const msg = staffError.message && staffError.message !== '{}'
-        ? staffError.message
-        : `code=${staffError.code ?? 'unknown'} details=${staffError.details ?? 'none'}`
-      return { success: false, error: `Database error: ${msg}. Check server logs.` }
+      return { success: false, error: 'An unexpected error occurred. Please try again.' }
     }
 
     if (!staff) {
@@ -119,17 +116,14 @@ export async function sendOtp(input: SendOtpInput): Promise<AuthActionResult> {
     })
 
     if (error) {
-      console.error('[sendOtp] signInWithOtp error:', {
+      console.error('[sendOtp] signInWithOtp failed:', {
         message: error.message,
         status: error.status,
         name: error.name,
         code: (error as { code?: string }).code,
       })
       await logAuthAttempt(email, false)
-      const msg = error.message && error.message !== '{}'
-        ? error.message
-        : 'OTP send failed — user may not exist in auth.users (check Supabase Authentication tab)'
-      return { success: false, error: msg }
+      return { success: false, error: 'Could not send the verification code. Please try again.' }
     }
 
     return { success: true }
