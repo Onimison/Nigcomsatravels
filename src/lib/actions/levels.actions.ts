@@ -14,11 +14,7 @@ import {
   type CreateLevelInput,
   type UpdateLevelInput,
 } from '@/lib/validations/level.schema'
-
-export interface ActionResult {
-  success: boolean
-  error?: string
-}
+import type { ActionResult } from '@/types/actions'
 
 export async function addLevel(input: CreateLevelInput): Promise<ActionResult> {
   return addAdminRow({

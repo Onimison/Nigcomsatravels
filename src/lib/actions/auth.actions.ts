@@ -20,17 +20,13 @@ import {
 } from '@/lib/validations/auth.schema'
 import { redirect } from 'next/navigation'
 import type { UserRole } from '@/types/database'
+import type { ActionResult } from '@/types/actions'
 
 // ============================================================
 // Types
 // ============================================================
 
-export interface AuthActionResult {
-  success: boolean
-  error?: string
-}
-
-export interface VerifyOtpResult extends AuthActionResult {
+export interface VerifyOtpResult extends ActionResult {
   /** Dashboard path to navigate to on success (PRD 2.2 — role-based routing). */
   redirectTo?: string
 }
@@ -69,7 +65,7 @@ async function logAuthAttempt(email: string, success: boolean): Promise<void> {
  * PRD: "6-digit numeric OTP sent to the user's official email."
  * PRD 2.3: "Login checks staff.active = true. Deactivated staff cannot log in."
  */
-export async function sendOtp(input: SendOtpInput): Promise<AuthActionResult> {
+export async function sendOtp(input: SendOtpInput): Promise<ActionResult> {
   try {
     const parsed = sendOtpSchema.safeParse(input)
     if (!parsed.success) {

@@ -14,11 +14,7 @@ import {
   type CreateDepartmentInput,
   type UpdateDepartmentInput,
 } from '@/lib/validations/department.schema'
-
-export interface ActionResult {
-  success: boolean
-  error?: string
-}
+import type { ActionResult } from '@/types/actions'
 
 export async function addDepartment(input: CreateDepartmentInput): Promise<ActionResult> {
   return addAdminRow({

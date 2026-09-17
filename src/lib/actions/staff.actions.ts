@@ -19,11 +19,7 @@ import {
   type UpdateStaffInput,
 } from '@/lib/validations/staff.schema'
 import { revalidatePath } from 'next/cache'
-
-export interface ActionResult {
-  success: boolean
-  error?: string
-}
+import type { ActionResult } from '@/types/actions'
 
 /**
  * Add a new staff member.

@@ -17,6 +17,7 @@ import {
 } from '@/lib/validations/rates.schema'
 import { FX_RATE_SETTING_KEY } from '@/lib/utils/constants'
 import { revalidatePath } from 'next/cache'
+import type { ActionResult } from '@/types/actions'
 
 /**
  * `updated_at`/`updated_by` stamping shared by addRateReference and
@@ -30,11 +31,6 @@ async function stampedBy() {
     data: { user },
   } = await supabase.auth.getUser()
   return { updated_at: new Date().toISOString(), updated_by: user?.id ?? null }
-}
-
-export interface ActionResult {
-  success: boolean
-  error?: string
 }
 
 // ============================================================

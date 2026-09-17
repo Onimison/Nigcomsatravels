@@ -24,15 +24,7 @@ import { calculateFinalCost, calculateTotalRawAllowance, datesOverlap } from '@/
 import { FX_RATE_SETTING_KEY } from '@/lib/utils/constants'
 import { revalidatePath } from 'next/cache'
 import type { TravelMode, TravelRequestForHR, RateSuggestionResult } from '@/types/database'
-
-// ============================================================
-// Types
-// ============================================================
-
-export interface ActionResult {
-  success: boolean
-  error?: string
-}
+import type { ActionResult } from '@/types/actions'
 
 // ============================================================
 // Trip endpoint resolution
