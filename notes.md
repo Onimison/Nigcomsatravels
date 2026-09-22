@@ -1,279 +1,302 @@
+# Domestic Travel Cost Platform — Product Requirements Document
 
-NIGCOMSAT TRAVEL REQUEST TOOL — PRODUCT REVIEW DOCUMENT (FINAL)
+**Version:** 1.1 — policy confirmed
+**Status:** Ready for engineering handoff
+**Date:** 17 September 2026
+**Owner:** Engineering (Bashir)
+**Reviewers:** MD, HR, NIGCOMSAT ICT
+**Source:** REVISED_SCOPE.md rev 3, todays-task.md
 
-
-
-
-1. Executive Summary
-
-This document replaces the manual HR → MD travel request process with a self-service web tool. Staff submit requests, HR reviews and applies company policy (allowances), and MD provides final approval. The system handles resubmissions, maintains full audit history, and provides role-based dashboards for Staff, HR, MD, and System Admin.
-
-Key Principles:
-- Single Auth Mechanism: Passwordless OTP for everyone.
-- Immutable History: Rejected requests are never edited; resubmissions create new linked records.
-- Role-Based Views: Strict database-level security (RLS) ensures users only see what they should.
-- Admin-First:System configuration (staff, rates, levels) is managed via UI, not database.
-
-
-2. Authentication & Access Control
-
-2.1 Login Mechanism (All Users)
-- Mechanism:6-digit numeric OTP sent to the user's official email.
-- Why OTP over Magic Link/Passwords: Plain-text codes pass spam filters faster and work reliably when emails are opened on a different device than the one initiating login. Also, staffs/users do not need to remember passwords.
-- Implementation: Supabase `signInWithOtp()` with a custom email template configured to send a numeric code. Verification via `verifyOtp()` with `type='email'`.
-- Session: Expires after 8 hours of inactivity.
-- Logout: Mandatory logout button; no persistent "remember me" for shared office devices.
-
-  2.2 Role Detection & Enforcement
-- Roles are stored in the `staff` table: `staff`, `hr`, `md`, `admin`.
-- On login, the system reads the role and routes the user to their specific dashboard.
-- Database Security: Supabase RLS policies enforce that:
-  - Staff see only their own requests.
-  - HR sees all requests in the review pipeline.
-  - MD sees pending approvals and approved history.
-  - Admin sees all data for management purposes.
-
-
- 2.3 Account Status
-- Login checks `staff.active = true`. Deactivated staff (offboarded) cannot log in, even if their email exists.
-- Every login attempt (success and failure) is logged to `auth_audit_log` for security auditing.
+Replaces manual travel-policy calculation between NIGCOMSAT's Microsoft Dynamics ERP and HR with a self-service cost calculator staff, HR and the MD all read from.
 
 ---
 
- 3. Role-Based Dashboards
+## 1. Executive Summary
 
-3.1 Staff Dashboard
-Primary Action: Request to Travel (Fields 1–7 + Reason for Travel)
+> A staff member signs in, enters an ERP memo number the HOD has already approved, adds who is travelling, and the platform prices the trip against NIGCOMSAT's travel policy automatically. HR reviews the number — adjusting only days, transport and airport taxi — and submits. The platform never owns the approval; it owns the arithmetic, the audit trail, and the policy. The MD keeps approving in the ERP, unchanged.
 
-Key Features:
-- Pre-Submit Estimate:** Before submitting, the system queries `rate_reference` and displays a non-binding estimate labeled *"Subject to HR verification."* If no rate exists, shows *"No reference rate found; HR will compute manually."*
-
-- **Date-Overlap Warning:** If new travel dates overlap with any existing `pending_hr`, `pending_md`, or `approved` request, the system displays: *"Warning: This trip overlaps with your existing request to [Destination] ([Dates]). Please confirm this is intentional."* (Warning only; submission is not blocked.)
-- **Pending Requests (List View):** Displays all requests where status is `pending_hr` or `pending_md`, with friendly status labels mapped directly to the backend enum.
-  - *"Awaiting HR Review"*
-  - *"Awaiting MD Approval"*
-  - *"Returned by HR for Revision"* (if `hr_rejected`)
-  - *"Returned by MD for Revision"* (if `md_rejected`)
-  - *"Rejected (Final)"*
-  - *"Approved"*
-- **Travel History:** Groups requests by `travel_group_id` to show the full lifecycle of a trip (e.g., Request → Rejected → Resubmitted → Approved) as one visual story.
-- **Ongoing Trip:** Auto-computed view (no manual field) showing any `approved` request where today's date falls between departure and return dates.
+### Confirmed since v1.0 — no longer open
+- ✓ **No Assistant Officer II**, and no further grade beyond the fourteen listed. The ladder in §8 is confirmed exhaustive.
+- ✓ **DTA and local running are not halved** on one-way trips. Only transport and airport taxi are — as already specified in §8.
+- ✓ **DTA and local running are paid on both travel days.** Depart Monday, return Wednesday counts as 3 days, in full.
 
 ---
 
-### 3.2 HR Dashboard
-**Primary Action:** Review Requests (Status = `pending_hr`)
+## 2. Background & Problem
 
-**Key Features:**
-- **Review Screen:** Displays staff details, destination, days, and the staff's original `reason_for_travel` (for context).
-- **"Suggest Standard Rates" Button:** Auto-populates fields 8–12 (Allowance for Local Running, Flight, Airport Taxi, Accommodation, Per Diem) from the `rate_reference` table based on the destination and level. HR clicks "Confirm" to accept or manually overrides (overrides are logged to `rate_overrides`).
-- **Live Total:** Updates in real-time as HR adjusts numbers.
-- **Overlap Flag:** Shows if the staff has overlapping approved trips elsewhere (same warning as staff sees).
-- **Resubmission Context:** If reviewing a request from a `travel_group_id` with a previous version, the prior rejection reason is displayed prominently so HR doesn't review blind.
-- **Actions:**
-  - **Approve:** Forwards to MD. Optional recommendation/note field.
-  - **Reject:** Requires mandatory text reason (stored and shown to staff). If rejection is marked **"Final,"** the request cannot be resubmitted.
+**Today:** a staff member writes a travel memo in the Dynamics ERP. The HOD reviews and approves it there. HR then manually calculates the travel allowance against policy — by hand, in a spreadsheet or on paper — and creates a second memo for the MD to approve.
+
+**What's wrong with that:** the calculation takes HR roughly twenty minutes per request, depends on whoever is doing it knowing the current policy rates for every one of fourteen grades, and has already produced a real incident — a figure typed as Naira read back as US Dollars, turning a ₦60,000 allowance into a reported ₦90,000,000. There is also no point in the flow where a staff member can check the status of their own request without asking HR directly.
+
+**What changes:** the platform in this document sits between the ERP and the people who use it. It does not replace the ERP's approval workflow — the HOD still approves there, and so will the MD. It replaces the manual arithmetic HR currently does, and gives staff a place to see the outcome once it's decided.
 
 ---
 
-### 3.3 MD Dashboard (Final Approval Authority)
-**Primary Action:** Approve or Reject Requests (Status = `pending_md`)
+## 3. Goals & Success Metrics
 
-**Key Features:**
-- **Queue Sorting/Filtering:**
-  - Sort by: *Total Cost (High to Low)*, *Earliest Departure*, *Department*.
-  - Filter by: *Department*, *Destination*.
-- **Review Screen:** Displays:
-  - Full Cost Breakdown (Fields 8–12).
-  - Applied Level Coverage Percentage.
-  - Final Total Cost.
-  - Staff's Original Reason for Travel.
-  - HR's Recommendation/Note (side-by-side with staff reason).
-- **Budget Awareness:** (Deferred to v1.5) Future enhancement: Department YTD spend warning.
-- **Actions:**
-  - **Approve:** Final approval. Request becomes `approved`.
-  - **Reject:** **Mandatory text reason required** (enforced at database level, not just UI). If marked **"Final,"** resubmission is blocked. If not final, staff can resubmit.
-- **History:** Full view of past approvals with cost snapshots.
+**Goals:** remove manual policy arithmetic from HR's workflow · make grade-band and coverage-tier lookup errors structurally impossible rather than a matter of care · keep a full audit trail for every figure that isn't the policy default · ship a usable product before any part of the ERP integration exists · keep the codebase portable to a future government-owned host.
 
----
-
-### 3.4 System Admin Dashboard (NEW — v1 Requirement)
-**Access:** Role = `admin` (assigned to HR Head or IT lead).
-
-**Why This Is v1, Not v2:** Without this UI, the development team becomes the bottleneck for every new hire, policy change, or rate update. The tool cannot be handed off to HR/IT if they cannot maintain it themselves.
-
-**Features:**
-- **Staff Management:** Add, edit, deactivate staff (Name, Email, Role, Department, Level).
-- **Level Configuration:** Edit `coverage_percent` and `flight_class` mapping per level (solves the policy document blocker without code deployment).
-- **Rate Management:**
-  - View and edit `rate_reference` (Master Rate Table).
-  - View `rate_overrides` log (HR manual entries).
-  - **One-Click "Promote to Master Rate":** Promotes a specific override from `rate_overrides` to `rate_reference`.
-  - View AI `rate_suggestions` (if agent is active).
-- **Department Management:** Add/Edit Departments and set optional Annual Budget Ceilings (for future budget warnings).
-- **FX Rate Override:** Manual override for daily exchange rate (system uses this for new international requests).
-
----
-
-## 4. Data Model Summary
-
-| Table | Key Fields | Purpose |
+| Metric | From | To |
 | :--- | :--- | :--- |
-| `staff` | `id` (UUID), `email`, `first_name`, `surname`, `role`, `department_id`, `level_id`, `active` | Master user list. Managed via Admin UI. |
-| `levels` | `id`, `name`, `coverage_percent`, `flight_class` | Policy config. Admin-editable. |
-| `departments` | `id`, `name`, `annual_budget_ceiling` | Cost centers. Admin-editable. |
-| `rate_reference` | `id`, `destination`, `level_id`, `mode`, `accommodation_rate`, `per_diem_rate`, `flight_estimate`, `airport_taxi` | Master rates. Admin-promoted only. |
-| `rate_overrides` | `id`, `request_id`, `field_name`, `overridden_value`, `hr_staff_id`, `timestamp` | Audit trail for HR manual entries. Never auto-promoted. |
-| `rate_suggestions` | `id`, `destination`, `suggested_rate`, `source`, `status` | AI agent write-target. Read-only for agent. |
-| `travel_requests` | `id`, `travel_group_id` (UUID), `previous_version_id` (UUID), `staff_id`, `destination`, `origin`, `mode`, `days`, `reason_for_travel`, <br> `allowance_local`, `allowance_flight`, `allowance_taxi`, `accommodation`, `per_diem`, `total_cost`, `final_cost`, `status` (enum), `locked_fx_rate`, `submitted_at`, `depart_date`, `return_date` | Main transactional table. `travel_group_id` links all resubmissions. |
-| `approvals` | `id`, `request_id`, `approver_id`, `status` (approved/rejected), `reason`, `is_final`, `timestamp` | Audit trail of every approval/rejection action. |
-| `auth_audit_log` | `id`, `email`, `success`, `timestamp`, `ip_address` | Security log of all login attempts. |
-
-**Key Design Choice: `travel_group_id` vs `parent_request_id`**
-- `travel_group_id` (UUID) is generated on the very first submission and copied to every resubmission.
-- `previous_version_id` points to the immediate predecessor for "diff" comparisons.
-- **Querying History:** `SELECT * FROM travel_requests WHERE group_id = 'X' ORDER BY created_at ASC` — no recursive CTEs needed.
-
-**Status Enum (Explicit, Mapped to UI Friendly Labels):**
-- `pending_hr` → "Awaiting HR Review"
-- `pending_md` → "Awaiting MD Approval"
-- `hr_rejected` → "Returned by HR for Revision"
-- `md_rejected` → "Returned by MD for Revision"
-- `rejected_final` → "Rejected (Final)"
-- `approved` → "Approved"
-
-*Note: `draft` and `completed` are explicitly excluded from v1. Draft state was ruled out earlier; completed belongs to the deferred retirement/receipts feature.*
+| HR time per request | ~20 min | ~90 sec |
+| FX/currency mispricing incidents | ₦90,000,000 (one real incident) | ₦0 |
+| Silently mispriced requests from an unmapped grade | — | 0 — must hard-refuse instead |
+| Staff can see their own request's outcome | — | Self-serve, once Phase 5 ships |
 
 ---
 
-## 5. Critical Business Rules
+## 4. Users & Roles
 
-### 5.1 Cost Calculation
-- `Total_Raw_Allowance` = `allowance_local` + `allowance_flight` + `allowance_taxi` + `accommodation` + `per_diem`
-- `Final_Cost` = `Total_Raw_Allowance` × (`levels.coverage_percent` / 100)
-- **Key:** The Admin UI holds `coverage_percent`. The code is completely agnostic to policy direction—it just multiplies. If the policy says "GM gets 75%," HR sets that number in the Admin UI.
+### Staff
+- Raise a request against an already-approved ERP memo number
+- Add colleagues travelling with them
+- See a live cost estimate while filling the form
+- ~~Cannot approve, edit policy rates, or see anyone's request they aren't named on~~
 
-### 5.2 FX Handling (International Travel)
-- Costs entered and stored in **USD**.
-- Displayed with **NGN equivalent** using a daily rate.
-- **Locking:** At HR finalization, the system fetches the current FX rate from a configurable source and writes it to the specific `travel_requests.locked_fx_rate` row. Later rate fluctuations do not retroactively change approved requests.
+### HR
+- Review every request, with the total already computed
+- Adjust days allowed, transport cost, airport taxi
+- Submit — which queues the push into the ERP
+- ~~Cannot edit DTA or local running directly; those are policy-derived~~
 
-### 5.3 Resubmission & Immutability
-- **Rule:** Rejected requests are immutable. No edits.
-- **Resubmission:** Staff clicks "Resubmit" on a rejected request.
-  - System creates a new row.
-  - New row copies `travel_group_id` from the rejected parent.
-  - New row sets `previous_version_id` = rejected row's `id`.
-  - New row starts with `status = 'pending_hr'`.
-- **Diff View (Deferred to v1.5):** Future enhancement to highlight what changed between versions.
+### MD
+- Read-only view: total cost, coverage rationale, HR's note
+- Approves or rejects the memo in the ERP, as before
+- ~~No approve/reject action on this platform — that dashboard is retired~~
 
-### 5.4 Mandatory Rejection Reason (Enforced)
-- The `approvals.reason` field is **NOT NULL** when `status = 'rejected'`.
-- **Database Constraint:** `CHECK (status != 'rejected' OR reason IS NOT NULL)`
-- This ensures HR and MD *must* provide a reason, preventing staff from receiving a rejection with no context.
+### Admin
+- Edits grade-band rates, coverage-tier cities, policy defaults
+- Edits which designation maps to which band
+- ~~Does not get a per-route fare editor — cut from scope~~
 
 ---
 
-## 6. Reporting & Audit
+## 5. Glossary
 
-### 6.1 Finance Reporting
-- **Query Target:** Normal indexed queries (materialized view deferred to v1.5; 250 staff doesn't require it yet).
-- **Filters:** Department, Level, Date Range, Destination, Status.
-- **Breakdown:** Costs itemized by the 5 allowance categories (not just a lump sum).
-
-### 6.2 Audit Trail
-- **`auth_audit_log`:** Tracks all login attempts (success/failure).
-- **`rate_overrides`:** Tracks every HR manual change to allowances.
-- **`approvals`:** Tracks who approved/rejected and when, including rejection reasons.
-- **`travel_requests`:** `created_at` and `updated_at` timestamps track lifecycle.
-
-*Note: "Who viewed this request" audit log is deferred to v1.5; nobody requested it, and it adds complexity without immediate value.*
+| Term | Definition |
+| :--- | :--- |
+| **DTA** | Duty Travel Allowance — a daily living allowance, paid per day of the trip. |
+| **Local running** | A second daily allowance covering incidental local movement, also paid per day. |
+| **Coverage tier** | 100% for Lagos, Abuja and Port Harcourt; 75% everywhere else. Applies only to DTA and local running. |
+| **Grade band** | One of four rate groups (B1–B4) that NIGCOMSAT's fourteen designations map onto. |
+| **Memo number** | The identifier the ERP generates once the HOD approves a staff member's travel memo — the entry point into this platform. |
+| **Duty station** | The four cities a trip may originate from: Abuja, Lagos, Kaduna, Gombe. |
+| **Policy snapshot** | A frozen copy of every rate used in a request's calculation, stored at submission so later rate changes never rewrite history. |
+| **Outbox** | The queue that holds a costed memo until a background job pushes it into the ERP — never a direct, synchronous write. |
 
 ---
 
-## 7. Security & RLS Policies
+## 6. User Journey
 
-### 7.1 Row-Level Security (Supabase)
-*These MUST be applied to the `travel_requests` table immediately. No frontend filtering allowed.*
+*Steps outside the dotted circle already happen in the ERP, unchanged by this platform.*
 
-```sql
--- Helper function to get app role from staff table
-CREATE FUNCTION current_staff_role()
-RETURNS TEXT
-LANGUAGE sql STABLE
-AS $$
-  SELECT role FROM staff WHERE id = auth.uid();
-$$;
+0. **HOD approves the memo** *(in the ERP)* — Out of scope here — the platform assumes this has already happened.
+1. **Staff signs in and enters the memo number** — Name and designation come from the session, never typed by hand.
+2. **Staff adds trip details and travellers** — Origin, destination, dates, one-way/return, and anyone travelling with them.
+3. **Platform prices the trip live** — Per-traveller DTA, local running, transport and airport taxi, against policy.
+4. **HR reviews and adjusts** — Only days allowed, transport, and airport taxi are editable; everything else is locked policy.
+5. **HR submits** — Commits locally and queues the ERP push — never a synchronous call from the submit button.
+6. **MD approves or rejects** *(in the ERP)* — Out of scope here — this platform only shows the total and the reasoning behind it.
+7. **Outcome polled back** — A scheduled job reads the MD's decision and shows it to the staff member who raised the request.
 
--- Staff: See only their own requests
-CREATE POLICY staff_see_own ON travel_requests
-  FOR SELECT USING (auth.uid() = staff_id);
+---
 
--- HR: See all requests except approved (unless for reporting)
-CREATE POLICY hr_read_all ON travel_requests
-  FOR SELECT USING (current_staff_role() = 'hr');
+## 7. Functional Requirements
 
-CREATE POLICY hr_update_allowances ON travel_requests
-  FOR UPDATE USING (current_staff_role() = 'hr')
-  WITH CHECK (status = 'pending_hr');
+*Priority follows MoSCoW. Phase references the build roadmap in §13.*
 
--- MD: See pending approvals and their own history (including rejections)
-CREATE POLICY md_read_pending_and_history ON travel_requests
-  FOR SELECT USING (
-    current_staff_role() = 'md' 
-    AND status IN ('pending_md', 'approved', 'md_rejected', 'rejected_final')
-  );
+### A. Authentication & Session
 
-CREATE POLICY md_update_status ON travel_requests
-  FOR UPDATE USING (current_staff_role() = 'md')
-  WITH CHECK (status IN ('pending_md', 'approved', 'md_rejected'));
+| ID | Requirement | Priority | Phase |
+| :--- | :--- | :--- | :--- |
+| FR-1 | Staff, HR, MD and Admin sign in through one auth shell; visiting a route outside your role's area 404s rather than redirects. | Must | 0 |
+| FR-2 | Replace OTP sign-in with Entra ID SSO — contingent on the eventual hosting environment allowing outbound HTTPS. | Must | 1 |
+| FR-3 | On login, name and designation are read from the staff record, never entered by hand. | Must | 0 |
 
--- Admin: Full access
-CREATE POLICY admin_all ON travel_requests
-  FOR ALL USING (current_staff_role() = 'admin');
+### B. Staff Travel Request
+
+| ID | Requirement | Priority | Phase |
+| :--- | :--- | :--- | :--- |
+| FR-4 | The memo number is step one of the request; format-validated in Phase 0, looked up against the ERP in Phase 3. The form must work fully on format validation alone. | Must | 0 |
+| FR-5 | The requester is auto-added as a traveller; colleagues can be added from the staff directory, each showing their designation. | Must | 0 |
+| FR-6 | Origin is restricted to Abuja, Lagos, Kaduna, Gombe. Destination is the airports list, or free text for road-only places. Destination ≠ origin. | Must | 0 |
+| FR-7 | A one-way/return toggle and travel dates resolve to a shown, inclusive day count ("3 days, 15–17 Sep"). | Must | 0 |
+| FR-8 | A live per-traveller cost estimate updates as the form is filled, with a plain-language note on which coverage tier applied and why. | Must | 0 |
+| FR-9 | A request needs at least one traveller and a memo number not already in an active request before it can be submitted. | Must | 0 |
+| FR-10 | Staff can see the outcome of a request they raised or are named on. | Should | 5 |
+
+### C. Cost Calculator
+
+| ID | Requirement | Priority | Phase |
+| :--- | :--- | :--- | :--- |
+| FR-11 | One shared calculation prices a single traveller and is the only place this arithmetic exists — used identically for the staff preview, the stored amount, and HR's live recalculation. | Must | 0 |
+| FR-12 | The amount persisted is always recomputed on the server from designation and trip parameters. A client-supplied figure is never trusted or stored. | Must | 0 |
+| FR-13 | Every designation maps to exactly one rate band. An unmapped designation must refuse the calculation and route to HR — never default to the lowest band or to zero. | Must | 0 |
+| FR-14 | Every rate used in a calculation is snapshotted at submission, so a later policy change never rewrites a figure already shown or queued. | Must | 0 |
+
+### D. HR Review & Submission
+
+| ID | Requirement | Priority | Phase |
+| :--- | :--- | :--- | :--- |
+| FR-15 | HR's queue shows each request with its total already computed, never a blank form. | Must | 0 |
+| FR-16 | HR edits exactly three fields — days allowed, transport cost, airport taxi. DTA and local running recompute live and are otherwise locked. | Must | 0 |
+| FR-17 | On a multi-traveller request, days apply trip-wide; transport and taxi are set per traveller. | Must | 0 |
+| FR-18 | Every deviation from the policy default is logged, forming the audit trail for above- or below-policy payments. | Must | 0 |
+| FR-19 | A printable and copy-to-clipboard breakdown is available for every reviewed request — the primary route into the ERP today, and the permanent fallback afterward. | Must | 0 |
+| FR-20 | Submitting never calls the ERP synchronously; it queues the push, shows a visible sync state, and allows retry or manual override. | Should | 4 |
+
+### E. MD Visibility
+
+| ID | Requirement | Priority | Phase |
+| :--- | :--- | :--- | :--- |
+| FR-21 | The MD gets a read-only view — total cost, coverage rationale, HR's note. Approval happens in the ERP; the approve/reject action on this platform is retired. | Must | 0 |
+| FR-22 | The MD's ERP decision reflects back into this platform automatically. | Should | 5 |
+
+### F. Admin Configuration
+
+| ID | Requirement | Priority | Phase |
+| :--- | :--- | :--- | :--- |
+| FR-23 | Admin edits grade-band rates, the 100%-coverage city list, and the three policy defaults without a deployment. | Must | 0 |
+| FR-24 | Admin edits which designation maps to which rate band. | Must | 0 |
+| FR-25 | A per-route fare table (a different air fare per origin-destination pair) is not built. | Won't | — |
+
+### G. ERP Integration & Outcome
+
+| ID | Requirement | Priority | Phase |
+| :--- | :--- | :--- | :--- |
+| FR-26 | A valid memo number can look the trip up directly from the ERP and auto-fill the form; any failure falls soft to manual entry, which keeps working regardless. | Should | 3 |
+| FR-27 | Writing a memo into the ERP uses an idempotency key (memo number + version) so a retry can never create a duplicate. | Must | 4 |
+| FR-28 | No direct writes to ERP database tables — only through its supported integration surface. | Must | 4 |
+| FR-29 | An authentication health check alerts the team if the ERP credential in use stops working. | Should | 4 |
+| FR-30 | A scheduled job polls the ERP for the MD's decision on each submitted request and records it. | Should | 5 |
+
+### H. Audit & Compliance
+
+| ID | Requirement | Priority | Phase |
+| :--- | :--- | :--- | :--- |
+| FR-31 | Every monetary figure is Naira. No foreign-currency handling exists anywhere in the product. | Must | 0 |
+| FR-32 | A memo number cannot be in two active requests at once, though a returned request can be resubmitted under the same memo. | Must | 0 |
+
+---
+
+## 8. The Travel Policy — Business Rules
+
+This is the specification the calculator implements exactly. Coverage applies only to DTA and local running; transport and airport taxi are paid at full flat rates regardless of destination.
+
+### Coverage tiers
+- **100% cover:** Lagos, Abuja, Port Harcourt.
+- **75% cover:** every other destination.
+
+The tier that applies is the one the traveller is *in* — an Abuja-based MD travelling to Port Harcourt is on 100%, while a Port Harcourt-based officer travelling to Gombe is on 75%.
+
+### Grade bands
+
+| Band | Designations | DTA/day @100% | @75% | Local running/day @100% | @75% |
+| :--- | :--- | ---: | ---: | ---: | ---: |
+| B1 | Managing Director · Executive Director | ₦60,000 | ₦45,000 | ₦18,000 | ₦13,500 |
+| B2 | General Manager · Deputy General Manager · Assistant General Manager | ₦40,000 | ₦30,000 | ₦12,000 | ₦9,000 |
+| B3 | Senior Manager · Manager · Deputy Manager · Assistant Manager | ₦30,000 | ₦22,500 | ₦9,000 | ₦6,750 |
+| B4 | Senior Officer · Senior Technical Officer · Officer I · Officer II · Assistant Officer I | ₦15,000 | ₦11,250 | ₦4,500 | ₦3,375 |
+
+**Confirmed exhaustive:** there is no Assistant Officer II, and no further grade beyond these fourteen. A designation that ever fails to match one of them must still refuse and route to HR rather than guess (FR-13) — the confirmation removes the immediate risk, not the safeguard.
+
+### Transport & airport taxi (flat defaults, HR-overridable)
+
+| Item | Default | Notes |
+| :--- | ---: | :--- |
+| Air, each way | ₦150,000 | ₦300,000 round trip. No per-route table. |
+| Road, each way | ₦50,000 | ₦100,000 round trip. Same treatment as air. |
+| Airport taxi | ₦40,000 × legs | Per traveller, even on a shared trip. ₦0 on road trips. |
+
+### The formula
+
+```
+days       = (return date − depart date) + 1, HR's override wins if set — paid in full on both travel days
+coverage   = destination is Lagos/Abuja/Port Harcourt ? 100% : 75%
+legs       = one-way trip ? 1 : 2
+
+dta        = band.dta_per_day           × coverage × days
+local      = band.local_running_per_day × coverage × days
+transport  = (air ? 150,000 : 50,000) × legs   — not scaled by coverage
+taxi       = (air ? 40,000 × legs : 0)         — not scaled by coverage
+
+traveller total = dta + local + transport + taxi
+request total    = sum of every traveller on the memo
 ```
 
-### 7.2 Environment Separation
-- Separate Supabase projects (or clearly separated schemas) for development vs. production.
-- API keys and service role keys **never** committed to the repository.
-- Code review required before merging to main branch (lightweight; just second pair of eyes).
+**One-way travel** halves transport and taxi only. DTA and local running are per-day living costs, not journey costs — a one-way traveller spending three days in Kano lives and moves for three days exactly as a return traveller does, so halving them would pay two people in the same city different allowances on the same days. **Confirmed** — not halved.
+
+### Worked examples
+
+| Route | Band | Mode | Days | Cover | Total |
+| :--- | :--- | :--- | ---: | ---: | ---: |
+| Abuja → Kano | B3 | Air | 3 | 75% | ₦467,500 |
+| Gombe → Lagos | B2 | Air | 2 | 100% | ₦484,000 |
+| Kaduna → Kano | B4 | Road | 4 | 75% | ₦158,500 |
+| Abuja → Port Harcourt | B1 | Air | 1 | 100% | ₦458,000 |
+| Abuja → Kano, one-way | B3 | Air | 3 | 75% | ₦277,750 |
 
 ---
 
-## 8. Build Order (Sprints)
+## 9. Non-Functional Requirements
 
-*Assign these in order to prevent merge conflicts and logical gaps:*
-
-| Sprint | Focus | Deliverable |
-| :--- | :--- | :--- |
-| **0** | Foundation | Supabase setup, RLS policies, Admin UI (Staff/Levels/Rates/Depts CRUD) |
-| **1** | Auth + Staff Dashboard | OTP login, Request Form, Estimate, Overlap Warning, History |
-| **2** | HR Dashboard | Review, Rate Suggestions, Reject/Forward with travel_group_id |
-| **3** | MD Dashboard | Review, Budget Awareness (v1.5 placeholder), Approve/Reject with mandatory reason |
-| **4** | Reporting & Audit | Filters, Breakdown, Audit Logs |
-| **5** | (Optional) AI Agent | Writes only to `rate_suggestions`; never to master tables |
-
----
-
-## 9. Open Questions (Resolved)
-
-| Question | Answer |
+| Area | Requirement |
 | :--- | :--- |
-| Can a staff member have more than one active request at a time? | **Yes.** Pending requests is a list view. |
-| Does the MD dashboard include cost figures? | **Yes.** Full breakdown, coverage percentage, and final total shown. |
-| Should HR/MD use the same passwordless login as staff? | **Yes.** One auth mechanism for everyone. |
-| Should both staff reason and HR note be visible to MD? | **Yes.** Side-by-side, neither supersedes the other. |
+| **Security** | Row-level access control at the database, not just in the UI. A traveller who isn't the requester can still see the request they're named on. The server is the sole authority on any stored amount. |
+| **Portability** | No platform-specific hosting features. Self-hosted Supabase preserves the entire auth/RLS model if the deployment moves to a government-owned cloud. |
+| **Auditability** | Rate overrides and policy snapshots give a complete trail for every request — a compliance requirement for a parastatal, not optional polish. |
+| **Reliability** | ERP writes are queued with retries and a dead-letter view, never a best-effort synchronous call that can silently fail or double-submit. |
+| **Performance** | The cost preview feels instant — a pure, synchronous calculation with no network round-trip. |
+| **Data integrity** | The memo-number constraint and the exhaustive designation-to-band mapping are enforced by the database, not only in application code. |
 
 ---
 
-## 10. Deferred to v1.5 (Not Abandoned)
+## 10. What Stays the Same
 
-The following are explicitly deferred to avoid scope creep:
-
-- **Diff View (Resubmission Changes):** Highlighting what changed between rejected request and resubmission. Useful but not critical for launch.
-
-
+The rebuild is the pricing core, not the whole product. Untouched: the sign-in and session shell · route protection by role · request versioning · the override-logging mechanism · the UI component library · the duty-station/airport list · the overlap warning when a traveller has two trips at once · dashboard layouts and navigation.
 
 ---
 
+## 11. Out of Scope
 
+**Not building:** international travel (funded by the ministry, not this platform) · accommodation as a separate line (DTA absorbs it) · retirement/reconciliation, since this is a reimbursement model, not an advance · a per-route fare table · HOD approval inside this app (already happens in the ERP) · MD approve/reject inside this app · budget ceilings · AI-suggested rates · any USD/FX handling.
+
+**Deferred, not cancelled:** multi-leg trips, and mixed-mode travel for a single traveller. The data model must not actively prevent adding either later.
+
+---
+
+## 12. Assumptions & Dependencies
+
+The HOD has already approved a memo in the ERP before it reaches this platform — there is no HOD role or gate here. One HR account holds the ERP integration credentials, because one HR person currently handles this work. The MD's decision comes back by polling the ERP, not a webhook, because the ERP does not push outcomes. Entra ID SSO answers the request to move off OTP, provided the eventual hosting environment allows outbound internet access — if it does not, a self-hosted identity provider is a materially larger, separate workstream. Which Dynamics product, version and deployment model NIGCOMSAT runs is still an open question for ICT, and gates the entire ERP integration (Phases 3–5).
+
+---
+
+## 13. Release Phasing
+
+| Phase | Delivers | Gate |
+| :--- | :--- | :--- |
+| 0 | Currency fix, grade bands, the calculator with its test suite, the new request/travellers schema, HR's three-field review, printable memo, MD to read-only. **A complete, usable product on its own.** | Nothing external |
+| 1 | Entra ID SSO, replacing OTP. | Hosting allows outbound internet |
+| 2 | Migration to a government-owned cloud host. | Provider chosen, infra owner named |
+| 3 | ERP read — memo lookup auto-fills the form. | Dynamics product/version confirmed |
+| 4 | ERP write — the outbox, idempotency, sync status, manual override. | Phase 3 |
+| 5 | Outcome polling — the MD's ERP decision reflected back automatically. | Phase 4 |
+
+*A full task-level breakdown of Phase 0 by owner already exists as a companion engineering document; this PRD is the product-level reference it was built from.*
+
+---
+
+## 14. Open Questions & Risks
+
+The three policy questions (grade ladder, one-way treatment, both-days payment) are answered — see the confirmed box in §1 and the notes in §8. Everything below is still open, and all four sit with NIGCOMSAT ICT rather than the client.
+
+| # | Question | Owner |
+| :--- | :--- | :--- |
+| Q3 | Which government cloud provider, and what does it offer — bare VMs, Kubernetes, managed Postgres? | Ask: ICT |
+| Q4 | Does that environment permit outbound internet? Decides whether Entra SSO, email and the flight-price lookup are even possible — the single highest-leverage answer in this document. | Ask: ICT |
+| Q5 | Which Dynamics product, version and deployment model — Business Central, F&O, or Dataverse? Gates Phases 3–5 entirely. | Ask: ICT |
+| Q6 | Who owns infrastructure and on-call in NIGCOMSAT ICT after launch? | Ask: ICT |
+
+---
+
+*Sources: REVISED_SCOPE.md (rev 3, 10 Sep 2026) · SCOPE_CHANGE_REVIEW.md · todays-task.md. This PRD states product intent; REVISED_SCOPE.md §2–§6 remains the authoritative source for exact schema and migration detail if the two ever disagree.*
