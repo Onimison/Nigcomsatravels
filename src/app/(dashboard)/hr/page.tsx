@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { requireDashboardAccess } from '@/lib/utils/auth-guard'
 import { getPendingHRRequests, getHRHistory } from '@/lib/actions/requests.actions'
-import { listFlightPriceReference, getFxRateOverride } from '@/lib/actions/rates.actions'
+import { listFlightPriceReference } from '@/lib/actions/rates.actions'
 import { RecentRequestsPreview } from '@/components/hr/recent-requests-preview'
 import { FlightPricePreview } from '@/components/hr/flight-price-preview'
 import { PageHeader } from '@/components/ui/page-header'
@@ -32,14 +32,12 @@ export default async function HRDashboardPage() {
     redirect('/')
   }
 
-  const [pendingResult, historyResult, flightRatesResult, fxRateResult] = await Promise.all([
+  const [pendingResult, historyResult, flightRatesResult] = await Promise.all([
     getPendingHRRequests(),
     getHRHistory(),
     listFlightPriceReference(),
-    getFxRateOverride(),
   ])
 
-  const fxRate = fxRateResult.success && fxRateResult.data ? Number(fxRateResult.data.value) : null
   const pending = pendingResult.data ?? []
   const history = historyResult.data ?? []
 
@@ -95,7 +93,7 @@ export default async function HRDashboardPage() {
           </LinkButton>
         }
       >
-        <FlightPricePreview rates={flightRatesResult.data ?? []} fxRate={fxRate} />
+        <FlightPricePreview rates={flightRatesResult.data ?? []} />
       </Card>
     </div>
   )

@@ -13,12 +13,11 @@ export const metadata: Metadata = {
 }
 
 /**
- * MD Dashboard — PRD Section 3.3
- *
- * Primary Action: Approve or Reject Requests (Status = pending_md)
- * Queue sorting/filtering, cost breakdown, and approve/reject actions live
- * in the client component below; this page is auth + data fetching + the
- * surrounding stat tiles (UI_UX_DESIGN_PLAN.md §3.4).
+ * MD Dashboard — read-only (REVISED_SCOPE.md decision 5 / M6). Approval
+ * happens in the ERP now; this page shows what HR has priced and, once
+ * Phase 5 ships, the ERP-reported outcome. Filtering, cost breakdown, etc.
+ * live in the client component below; this page is auth + data fetching +
+ * the surrounding stat tiles.
  */
 export default async function MDDashboardPage() {
   const auth = await requireDashboardAccess('md')
@@ -44,7 +43,7 @@ export default async function MDDashboardPage() {
     return updated.getMonth() === now.getMonth() && updated.getFullYear() === now.getFullYear()
   }).length
   const rejectedCount = history.filter(
-    (r) => r.status === 'md_rejected' || r.status === 'rejected_final'
+    (r) => r.status === 'rejected' || r.status === 'rejected_final'
   ).length
 
   return (
@@ -63,7 +62,7 @@ export default async function MDDashboardPage() {
       )}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
-        <StatTile icon={ClockIcon} value={pending.length} label="Pending Approval" tone="amber" />
+        <StatTile icon={ClockIcon} value={pending.length} label="Priced by HR" tone="amber" />
         <StatTile icon={CheckCircleIcon} value={approvedThisMonth} label="Approved This Month" tone="green" />
         <StatTile icon={XCircleIcon} value={rejectedCount} label="Rejected" tone="red" />
       </div>

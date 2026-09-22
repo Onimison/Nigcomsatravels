@@ -5,10 +5,14 @@
  * display, data fetched once in hr/history/page.tsx.
  */
 
-import { formatDate, usdToNgn } from '@/lib/utils/formatting'
+import Link from 'next/link'
+import { formatDate } from '@/lib/utils/formatting'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { Money } from '@/components/ui/money'
 import type { TravelRequestForMD } from '@/types/database'
+
+/** Only a forwarded request has a priced breakdown to print. */
+const PRINTABLE_STATUSES = ['queued_for_erp', 'in_erp', 'approved', 'rejected', 'rejected_final']
 
 function staffName(row: { staff: { first_name: string | null; surname: string | null; email: string } | null }): string {
   if (!row.staff) return 'Unknown staff'
@@ -45,18 +49,22 @@ function HistoryRow({ row }: { row: TravelRequestForMD }) {
         <div className="text-right">
           <StatusBadge status={row.status} />
           <div className="mt-1">
-            <Money
-              ngn={row.final_cost != null && row.locked_fx_rate != null ? usdToNgn(row.final_cost, row.locked_fx_rate) : null}
-              usd={row.final_cost}
-              align="right"
-            />
+            <Money ngn={row.request_total} align="right" />
           </div>
         </div>
       </div>
-      {reason && row.status === 'hr_rejected' && (
+      {reason && row.status === 'hr_returned' && (
         <p className="mt-2 text-sm text-gray-600">
           Reason: <span className="italic">“{reason}”</span>
         </p>
+      )}
+      {PRINTABLE_STATUSES.includes(row.status) && (
+        <Link
+          href={`/hr/requests/${row.id}/memo`}
+          className="mt-2 inline-block text-xs font-medium text-blue-700 hover:text-blue-800"
+        >
+          View / Print Memo
+        </Link>
       )}
     </div>
   )

@@ -1,35 +1,23 @@
 'use client'
 
 /**
- * MD Dashboard orchestrator — PRD Section 3.3
- *
- * Renders the pending-approval queue (sortable/filterable) plus a read-only
- * decision history, built from getPendingMDRequests() / getMDHistory()
- * (both fetched server-side in page.tsx).
+ * MD Dashboard — REVISED_SCOPE.md decision 5 / M6: read-only. Approval now
+ * happens in the ERP, not here. This view exists so the MD can see the
+ * total, the per-traveller breakdown, and HR's note without asking "why is
+ * this ₦X?" — the ERP memo will carry only the total.
  */
 
 import { useMemo, useState } from 'react'
-import { mdApproveReject } from '@/lib/actions/requests.actions'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import { Button } from '@/components/ui/button'
 import { CashIcon } from '@/components/ui/icons'
 import { Money } from '@/components/ui/money'
-import { formatDate, usdToNgn } from '@/lib/utils/formatting'
-import type { TravelRequestForMD } from '@/types/database'
-import { useRouter } from 'next/navigation'
+import { formatDate } from '@/lib/utils/formatting'
+import type { RequestTravellerWithStaff, TravelRequestForMD } from '@/types/database'
 
 type SortKey = 'cost_desc' | 'earliest' | 'department'
-
-const ALLOWANCE_FIELDS: { key: keyof TravelRequestForMD; label: string }[] = [
-  { key: 'allowance_local', label: 'Local Running' },
-  { key: 'allowance_flight', label: 'Flight' },
-  { key: 'allowance_taxi', label: 'Airport Taxi' },
-  { key: 'accommodation', label: 'Accommodation' },
-  { key: 'per_diem', label: 'Per Diem' },
-]
 
 function departmentName(row: TravelRequestForMD): string {
   return row.staff?.department?.name ?? 'Unassigned'
@@ -38,6 +26,11 @@ function departmentName(row: TravelRequestForMD): string {
 function staffName(row: TravelRequestForMD): string {
   if (!row.staff) return 'Unknown staff'
   return [row.staff.first_name, row.staff.surname].filter(Boolean).join(' ') || row.staff.email
+}
+
+function travellerName(t: RequestTravellerWithStaff): string {
+  if (!t.staff) return 'Unknown staff'
+  return [t.staff.first_name, t.staff.surname].filter(Boolean).join(' ') || t.staff.email
 }
 
 /** HR's forwarding note is the reason on the `hr_approved` row, if any. */
@@ -63,8 +56,6 @@ function decisionReason(row: TravelRequestForMD): string | null {
 }
 
 function CostBreakdown({ row }: { row: TravelRequestForMD }) {
-  const coveragePercent = row.staff?.level?.coverage_percent ?? null
-
   return (
     <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-sm">
       <div className="mb-2 flex items-center gap-2">
@@ -73,40 +64,24 @@ function CostBreakdown({ row }: { row: TravelRequestForMD }) {
         </span>
         <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Cost Breakdown (NGN)</p>
       </div>
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-3">
-        {ALLOWANCE_FIELDS.map(({ key, label }) => {
-          const usd = row[key] != null ? Number(row[key]) : null
-          return (
-            <div key={key} className="flex justify-between gap-2 sm:block">
-              <dt className="text-xs text-gray-500">{label}</dt>
-              <dd>
-                <Money
-                  ngn={usd != null && row.locked_fx_rate != null ? usdToNgn(usd, row.locked_fx_rate) : null}
-                  usd={usd}
-                  size="sm"
-                  layout="inline"
-                />
-              </dd>
+      <div className="space-y-2">
+        {row.travellers.map((t) => (
+          <div key={t.id} className="flex items-center justify-between gap-2 rounded border border-gray-200 bg-white px-2.5 py-1.5">
+            <div>
+              <p className="text-xs font-medium text-gray-900">{travellerName(t)}</p>
+              <p className="text-[11px] text-gray-500">{t.grade_band_code}</p>
             </div>
-          )
-        })}
-      </dl>
+            <Money ngn={t.traveller_total} size="sm" layout="inline" />
+          </div>
+        ))}
+      </div>
       <div className="mt-3 flex flex-wrap items-end justify-between gap-3 border-t border-gray-200 pt-2">
         <span className="text-xs text-gray-500">
-          Level coverage: {coveragePercent != null ? `${coveragePercent}%` : 'Unknown'}
+          Coverage: {row.coverage_percent_applied != null ? `${row.coverage_percent_applied}%` : 'Unknown'}
         </span>
         <div>
-          <p className="text-xs text-gray-500">Final Total</p>
-          {row.final_cost != null ? (
-            <Money
-              ngn={row.locked_fx_rate != null ? usdToNgn(row.final_cost, row.locked_fx_rate) : null}
-              usd={row.final_cost}
-              size="md"
-              align="right"
-            />
-          ) : (
-            <p className="text-sm font-medium text-gray-500">Pending HR calculation</p>
-          )}
+          <p className="text-xs text-gray-500">Total</p>
+          <Money ngn={row.request_total} size="md" align="right" />
         </div>
       </div>
     </div>
@@ -137,38 +112,7 @@ function ReasonPair({ row }: { row: TravelRequestForMD }) {
   )
 }
 
-function PendingCard({ row }: { row: TravelRequestForMD }) {
-  const router = useRouter()
-  const [note, setNote] = useState('')
-  const [isFinal, setIsFinal] = useState(false)
-  const [pendingAction, setPendingAction] = useState<'approve' | 'reject' | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  async function handleAction(action: 'approve' | 'reject') {
-    setError(null)
-
-    if (action === 'reject' && note.trim().length === 0) {
-      setError('A reason is required when rejecting a request')
-      return
-    }
-
-    setPendingAction(action)
-    const result = await mdApproveReject({
-      request_id: row.id,
-      action,
-      reason: note.trim() || undefined,
-      is_final: action === 'reject' ? isFinal : false,
-    })
-    setPendingAction(null)
-
-    if (!result.success) {
-      setError(result.error ?? 'Something went wrong. Please try again.')
-      return
-    }
-
-    router.refresh()
-  }
-
+function RequestCard({ row }: { row: TravelRequestForMD }) {
   return (
     <div className="space-y-5 rounded-xl border border-gray-200 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -177,52 +121,17 @@ function PendingCard({ row }: { row: TravelRequestForMD }) {
             {row.origin} → {row.destination}
           </p>
           <p className="mt-0.5 text-xs text-gray-500">
-            {staffName(row)} · {departmentName(row)}
+            {staffName(row)} · {departmentName(row)} · Memo {row.memo_number}
           </p>
           <p className="mt-0.5 text-xs text-gray-500">
             {formatDate(row.depart_date)} – {formatDate(row.return_date)} · {row.mode}
           </p>
         </div>
+        <StatusBadge status={row.status} />
       </div>
 
       <CostBreakdown row={row} />
       <ReasonPair row={row} />
-
-      <div className="space-y-2 border-t border-gray-100 pt-3">
-        <label className="block text-xs font-medium text-gray-700" htmlFor={`note-${row.id}`}>
-          Reason (required to reject, optional note when approving)
-        </label>
-        <textarea
-          id={`note-${row.id}`}
-          rows={2}
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-        />
-
-        <label className="flex items-center gap-2 text-xs text-gray-600">
-          <input
-            type="checkbox"
-            checked={isFinal}
-            onChange={(e) => setIsFinal(e.target.checked)}
-            className="rounded border-gray-300"
-          />
-          Mark rejection as final (blocks resubmission)
-        </label>
-
-        {error && (
-          <p className="text-sm text-red-600" role="alert">{error}</p>
-        )}
-
-        <div className="flex flex-wrap gap-2 pt-1">
-          <Button variant="success" disabled={pendingAction !== null} onClick={() => handleAction('approve')}>
-            {pendingAction === 'approve' ? 'Approving…' : 'Approve'}
-          </Button>
-          <Button variant="danger" disabled={pendingAction !== null} onClick={() => handleAction('reject')}>
-            {pendingAction === 'reject' ? 'Rejecting…' : 'Reject'}
-          </Button>
-        </div>
-      </div>
     </div>
   )
 }
@@ -246,11 +155,7 @@ function HistoryCard({ row }: { row: TravelRequestForMD }) {
         <div className="text-right">
           <StatusBadge status={row.status} />
           <div className="mt-1">
-            <Money
-              ngn={row.final_cost != null && row.locked_fx_rate != null ? usdToNgn(row.final_cost, row.locked_fx_rate) : null}
-              usd={row.final_cost}
-              align="right"
-            />
+            <Money ngn={row.request_total} align="right" />
           </div>
         </div>
       </div>
@@ -291,7 +196,7 @@ export function MDDashboard({
     return [...filtered].sort((a, b) => {
       switch (sortKey) {
         case 'cost_desc':
-          return (b.final_cost ?? 0) - (a.final_cost ?? 0)
+          return (b.request_total ?? 0) - (a.request_total ?? 0)
         case 'department':
           return departmentName(a).localeCompare(departmentName(b))
         case 'earliest':
@@ -339,26 +244,31 @@ export function MDDashboard({
 
   return (
     <div className="space-y-6">
-      <Card title={`Pending Approval (${visible.length})`} action={filterRow}>
+      <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+        Read-only. Approval now happens in the ERP once HR forwards a request — this view exists so you can see the
+        total and the reasoning behind it.
+      </p>
+
+      <Card title={`Priced by HR (${visible.length})`} action={filterRow}>
         {visible.length === 0 ? (
           <p className="text-sm text-gray-500">
             {pending.length === 0
-              ? 'No requests awaiting MD approval.'
+              ? 'No requests forwarded by HR yet.'
               : 'No requests match the current filters.'}
           </p>
         ) : (
           <div className="space-y-3">
             {visible.map((row) => (
-              <PendingCard key={row.id} row={row} />
+              <RequestCard key={row.id} row={row} />
             ))}
           </div>
         )}
       </Card>
 
-      <Card title="Approval History">
+      <Card title="ERP Outcomes">
         {history.length === 0 ? (
           <p className="text-sm text-gray-500">
-            Past approvals and rejections will appear here.
+            Outcomes reported back from the ERP will appear here once that integration ships.
           </p>
         ) : (
           <div className="space-y-3">

@@ -5,6 +5,7 @@
  */
 
 import { StatusBadge } from '@/components/ui/status-badge'
+import { Money } from '@/components/ui/money'
 import { formatDate } from '@/lib/utils/formatting'
 import type { RequestStatus, TravelRequest } from '@/types/database'
 
@@ -15,9 +16,12 @@ interface ApprovalInfo {
   timestamp: string
 }
 
-export type StaffRequestRow = TravelRequest & { approvals: ApprovalInfo[] | null }
+export type StaffRequestRow = TravelRequest & {
+  approvals: ApprovalInfo[] | null
+  travellers: { staff_id: string }[]
+}
 
-export const RESUBMITTABLE_STATUSES: RequestStatus[] = ['hr_rejected', 'md_rejected']
+export const RESUBMITTABLE_STATUSES: RequestStatus[] = ['hr_returned']
 
 export function latestReason(row: StaffRequestRow): string | null {
   if (!row.approvals || row.approvals.length === 0) return null
@@ -54,10 +58,13 @@ export function RequestCard({
             {formatDate(row.depart_date)} – {formatDate(row.return_date)} · {row.mode}
           </p>
         </div>
-        <StatusBadge status={row.status} />
+        <div className="text-right">
+          <StatusBadge status={row.status} />
+          {row.request_total != null && <Money ngn={row.request_total} size="sm" align="right" className="mt-1" />}
+        </div>
       </div>
 
-      {reason && (row.status === 'hr_rejected' || row.status === 'md_rejected' || row.status === 'rejected_final') && (
+      {reason && (row.status === 'hr_returned' || row.status === 'rejected' || row.status === 'rejected_final') && (
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
           Reason: <span className="italic">“{reason}”</span>
         </p>

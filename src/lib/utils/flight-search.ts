@@ -12,14 +12,6 @@
  * one-tap way to confirm it before committing an amount.
  */
 
-/** Cabin as stored on `levels.flight_class`. Anything else is ignored rather than guessed at. */
-const CABIN_LABELS: Record<string, string> = {
-  economy: 'economy class',
-  premium_economy: 'premium economy',
-  business: 'business class',
-  first: 'first class',
-}
-
 export interface FlightSearchParams {
   /** IATA code from the joined airports row — preferred, unambiguous. */
   originCode?: string | null
@@ -31,8 +23,6 @@ export interface FlightSearchParams {
   departDate?: string | null
   /** ISO date. Omit or null for a one-way search. */
   returnDate?: string | null
-  /** `levels.flight_class` for the requesting staff member's level. */
-  cabin?: string | null
 }
 
 /** Prefer the IATA code; fall back to the typed city; give up rather than guess. */
@@ -85,9 +75,6 @@ export function buildFlightSearchUrl(params: FlightSearchParams): string | null 
   const returnDate = params.returnDate?.trim()
   if (returnDate && returnDate !== depart) parts.push(`through ${returnDate}`)
 
-  const cabin = params.cabin ? CABIN_LABELS[params.cabin.trim().toLowerCase()] : undefined
-  if (cabin) parts.push(cabin)
-
   return `https://www.google.com/travel/flights?q=${encodeURIComponent(parts.join(' '))}`
 }
 
@@ -97,12 +84,4 @@ export function formatRoute(params: FlightSearchParams): string | null {
   const to = endpoint(params.destinationCode, params.destinationCity)
   if (!from || !to) return null
   return `${from} → ${to}`
-}
-
-/** Display label for a cabin, e.g. "Business class". Null when the level has none set. */
-export function formatCabin(cabin: string | null | undefined): string | null {
-  if (!cabin) return null
-  const label = CABIN_LABELS[cabin.trim().toLowerCase()]
-  if (!label) return null
-  return label.charAt(0).toUpperCase() + label.slice(1)
 }

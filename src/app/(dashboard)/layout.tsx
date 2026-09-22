@@ -22,7 +22,7 @@ async function getPendingBadgeCount(
       .from('travel_requests')
       .select('id', { count: 'exact', head: true })
       .eq('staff_id', userId)
-      .in('status', ['pending_hr', 'pending_md', 'hr_rejected', 'md_rejected'])
+      .in('status', ['pending_hr', 'hr_returned', 'queued_for_erp', 'in_erp'])
     return count ?? 0
   }
   if (role === 'hr') {
@@ -36,7 +36,7 @@ async function getPendingBadgeCount(
     const { count } = await supabase
       .from('travel_requests')
       .select('id', { count: 'exact', head: true })
-      .eq('status', 'pending_md')
+      .eq('status', 'queued_for_erp')
     return count ?? 0
   }
   return 0

@@ -5,9 +5,11 @@
  * flagship section (this pass's redefined "Sprint 4" — see
  * UI_UX_DESIGN_PLAN.md §4). One table drives both: `rate_reference` already
  * covers accommodation/per-diem/taxi/flight per destination+level+mode, so
- * this is a single CRUD surface over it, grouped by `route_type` (domestic
- * vs international) with the flight price and its staleness given top
- * billing since that's what HR needs most.
+ * this is a single CRUD surface over it, with the flight price and its
+ * staleness given top billing since that's what HR needs most.
+ *
+ * Domestic-only since the currency migration (REVISED_SCOPE.md M2) dropped
+ * international rate_reference rows and the route_type column entirely.
  */
 
 import { useState } from 'react'
@@ -18,8 +20,8 @@ import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { AlertTriangleIcon } from '@/components/ui/icons'
 import { Money } from '@/components/ui/money'
-import { formatNGN, formatStaleness, isStale, usdToNgn } from '@/lib/utils/formatting'
-import type { Level, RateReferenceWithLevel, RouteType } from '@/types/database'
+import { formatStaleness, isStale } from '@/lib/utils/formatting'
+import type { Level, RateReferenceWithLevel } from '@/types/database'
 
 type NumField = 'flight_estimate' | 'accommodation_rate' | 'per_diem_rate' | 'airport_taxi'
 const NUM_FIELDS: { key: NumField; label: string }[] = [
@@ -33,7 +35,6 @@ const EMPTY_FORM = {
   destination: '',
   level_id: '',
   mode: 'air' as 'air' | 'road',
-  route_type: 'domestic' as RouteType,
   flight_estimate: '',
   accommodation_rate: '',
   per_diem_rate: '',
@@ -64,7 +65,6 @@ function AddRateForm({ levels, onDone }: { levels: Level[]; onDone: () => void }
       destination: form.destination.trim(),
       level_id: form.level_id,
       mode: form.mode,
-      route_type: form.route_type,
       flight_estimate: form.flight_estimate ? Number(form.flight_estimate) : null,
       accommodation_rate: form.accommodation_rate ? Number(form.accommodation_rate) : null,
       per_diem_rate: form.per_diem_rate ? Number(form.per_diem_rate) : null,
@@ -88,7 +88,7 @@ function AddRateForm({ levels, onDone }: { levels: Level[]; onDone: () => void }
           label="Destination"
           value={form.destination}
           onChange={(e) => update('destination', e.target.value)}
-          placeholder="e.g. London"
+          placeholder="e.g. Lagos"
           required
         />
         <Select label="Level" value={form.level_id} onChange={(e) => update('level_id', e.target.value)}>
@@ -108,21 +108,11 @@ function AddRateForm({ levels, onDone }: { levels: Level[]; onDone: () => void }
         />
       </div>
 
-      <Select
-        label="Route Type"
-        value={form.route_type}
-        onChange={(e) => update('route_type', e.target.value as RouteType)}
-        options={[
-          { label: 'Domestic', value: 'domestic' },
-          { label: 'International', value: 'international' },
-        ]}
-      />
-
       <div className="grid gap-3 sm:grid-cols-4">
         {NUM_FIELDS.map(({ key, label }) => (
           <Input
             key={key}
-            label={`${label} (USD)`}
+            label={`${label} (NGN)`}
             type="number"
             min={0}
             step="0.01"
@@ -147,7 +137,7 @@ function AddRateForm({ levels, onDone }: { levels: Level[]; onDone: () => void }
   )
 }
 
-function RateRow({ row, fxRate }: { row: RateReferenceWithLevel; fxRate: number | null }) {
+function RateRow({ row }: { row: RateReferenceWithLevel }) {
   const router = useRouter()
   const [editing, setEditing] = useState(false)
   const [values, setValues] = useState<Record<NumField, string>>({
@@ -207,12 +197,7 @@ function RateRow({ row, fxRate }: { row: RateReferenceWithLevel; fxRate: number 
               />
             </div>
           ) : (
-            <Money
-              ngn={row[key] != null && fxRate ? usdToNgn(Number(row[key]), fxRate) : null}
-              usd={row[key] != null ? Number(row[key]) : null}
-              size="sm"
-              layout="inline"
-            />
+            <Money ngn={row[key] != null ? Number(row[key]) : null} size="sm" layout="inline" />
           )}
         </td>
       ))}
@@ -236,58 +221,14 @@ function RateRow({ row, fxRate }: { row: RateReferenceWithLevel; fxRate: number 
   )
 }
 
-function RateGroup({
-  title,
-  rows,
-  fxRate,
-}: {
-  title: string
-  rows: RateReferenceWithLevel[]
-  fxRate: number | null
-}) {
-  return (
-    <div>
-      <h3 className="text-sm font-semibold text-gray-700">
-        {title} <span className="font-normal text-gray-400">({rows.length})</span>
-      </h3>
-      {rows.length === 0 ? (
-        <p className="mt-2 text-sm text-gray-500">No {title.toLowerCase()} rates on file yet.</p>
-      ) : (
-        <div className="mt-2 overflow-x-auto">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="border-b border-gray-200 text-xs font-medium uppercase tracking-wide text-gray-400">
-                <th className="py-2 pr-4">Destination / Level / Mode</th>
-                {NUM_FIELDS.map(({ key, label }) => (
-                  <th key={key} className="py-2 pr-4">{label}</th>
-                ))}
-                <th className="py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <RateRow key={row.id} row={row} fxRate={fxRate} />
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  )
-}
-
 export function RateManagement({
   rates,
   levels,
-  fxRate,
 }: {
   rates: RateReferenceWithLevel[]
   levels: Level[]
-  fxRate: number | null
 }) {
   const [showAddForm, setShowAddForm] = useState(false)
-  const domestic = rates.filter((r) => r.route_type === 'domestic')
-  const international = rates.filter((r) => r.route_type === 'international')
   const staleFlightCount = rates.filter((r) => r.flight_estimate != null && isStale(r.updated_at)).length
 
   return (
@@ -296,16 +237,12 @@ export function RateManagement({
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Flight Price Reference</h2>
           <p className="mt-1 text-sm text-gray-500">
-            Domestic and international flight prices, kept current for HR to reference during review.
+            Domestic flight prices, kept current for HR to reference during review.
             {staleFlightCount > 0 && (
               <span className="ml-1 font-medium text-amber-600">
                 {staleFlightCount} price{staleFlightCount === 1 ? '' : 's'} haven&rsquo;t been checked in 30+ days.
               </span>
             )}
-          </p>
-          <p className="mt-1 text-xs text-gray-400">
-            Rates are entered and stored in USD; NGN shown alongside is converted at the current FX rate
-            {fxRate ? <> — 1 USD ≈ {formatNGN(fxRate)}</> : ' (not configured)'}.
           </p>
         </div>
         <Button onClick={() => setShowAddForm((v) => !v)} disabled={levels.length === 0}>
@@ -319,9 +256,29 @@ export function RateManagement({
 
       {showAddForm && <AddRateForm levels={levels} onDone={() => setShowAddForm(false)} />}
 
-      <div className="mt-6 space-y-6">
-        <RateGroup title="Domestic" rows={domestic} fxRate={fxRate} />
-        <RateGroup title="International" rows={international} fxRate={fxRate} />
+      <div className="mt-6">
+        {rates.length === 0 ? (
+          <p className="mt-2 text-sm text-gray-500">No rates on file yet.</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead>
+                <tr className="border-b border-gray-200 text-xs font-medium uppercase tracking-wide text-gray-400">
+                  <th className="py-2 pr-4">Destination / Level / Mode</th>
+                  {NUM_FIELDS.map(({ key, label }) => (
+                    <th key={key} className="py-2 pr-4">{label}</th>
+                  ))}
+                  <th className="py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {rates.map((row) => (
+                  <RateRow key={row.id} row={row} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )

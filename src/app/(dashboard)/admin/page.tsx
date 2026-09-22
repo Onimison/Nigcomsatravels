@@ -5,13 +5,15 @@ import { requireDashboardAccess } from '@/lib/utils/auth-guard'
 import { listStaff } from '@/lib/actions/staff.actions'
 import { listDepartments } from '@/lib/actions/departments.actions'
 import { listLevels } from '@/lib/actions/levels.actions'
-import { listRateReferences, getFxRateOverride } from '@/lib/actions/rates.actions'
+import { listRateReferences } from '@/lib/actions/rates.actions'
+import { listGradeBands, listCoverageTiers, listDestinationCoverage, listPolicyDefaults } from '@/lib/actions/grade-bands.actions'
 import { StaffManagement } from '@/components/admin/staff-management'
 import { LevelManagement } from '@/components/admin/level-management'
 import { RateManagement } from '@/components/admin/rate-management'
+import { PolicyManagement } from '@/components/admin/policy-management'
 import { PageHeader } from '@/components/ui/page-header'
 import { AdminTabs } from '@/components/admin/admin-tabs'
-import type { Department, Level, RateReferenceWithLevel, StaffWithDetails } from '@/types/database'
+import type { Department, LevelWithBand, RateReferenceWithLevel, StaffWithDetails } from '@/types/database'
 
 export const metadata: Metadata = {
   title: 'Admin Dashboard — NIGCOMSAT Travel',
@@ -38,15 +40,19 @@ export default async function AdminDashboardPage() {
     redirect('/')
   }
 
-  const [staffResult, departmentsResult, levelsResult, ratesResult, fxRateResult] = await Promise.all([
-    listStaff(),
-    listDepartments(),
-    listLevels(),
-    listRateReferences(),
-    getFxRateOverride(),
-  ])
+  const [staffResult, departmentsResult, levelsResult, ratesResult, bandsResult, coverageTiersResult, coverageCitiesResult, policyDefaultsResult] =
+    await Promise.all([
+      listStaff(),
+      listDepartments(),
+      listLevels(),
+      listRateReferences(),
+      listGradeBands(),
+      listCoverageTiers(),
+      listDestinationCoverage(),
+      listPolicyDefaults(),
+    ])
 
-  const fxRate = fxRateResult.success && fxRateResult.data ? Number(fxRateResult.data.value) : null
+  const fullCoveragePercent = (coverageTiersResult.data ?? []).find((t) => t.code === 'full')?.percent ?? 100
 
   return (
     <div className="space-y-6">
@@ -78,14 +84,19 @@ export default async function AdminDashboardPage() {
                 <StaffManagement
                   staff={(staffResult.data ?? []) as StaffWithDetails[]}
                   departments={(departmentsResult.data ?? []) as Department[]}
-                  levels={(levelsResult.data ?? []) as Level[]}
+                  levels={(levelsResult.data ?? []) as LevelWithBand[]}
                 />
               ),
             },
             {
               key: 'levels',
               label: 'Levels',
-              content: <LevelManagement levels={(levelsResult.data ?? []) as Level[]} />,
+              content: (
+                <LevelManagement
+                  levels={(levelsResult.data ?? []) as LevelWithBand[]}
+                  bands={bandsResult.data ?? []}
+                />
+              ),
             },
             {
               key: 'rates',
@@ -93,8 +104,19 @@ export default async function AdminDashboardPage() {
               content: (
                 <RateManagement
                   rates={(ratesResult.data ?? []) as RateReferenceWithLevel[]}
-                  levels={(levelsResult.data ?? []) as Level[]}
-                  fxRate={fxRate}
+                  levels={(levelsResult.data ?? []) as LevelWithBand[]}
+                />
+              ),
+            },
+            {
+              key: 'policy',
+              label: 'Policy',
+              content: (
+                <PolicyManagement
+                  bands={bandsResult.data ?? []}
+                  coverageCities={coverageCitiesResult.data ?? []}
+                  coveragePercent={fullCoveragePercent}
+                  policyDefaults={policyDefaultsResult.data ?? []}
                 />
               ),
             },

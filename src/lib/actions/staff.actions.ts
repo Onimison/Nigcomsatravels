@@ -142,7 +142,7 @@ export async function getMyProfile(): Promise<ActionResult<StaffWithDetails | nu
 
   const { data, error } = await supabase
     .from('staff')
-    .select('*, department:departments(*), level:levels(*)')
+    .select('*, department:departments(*), level:levels(*, band:grade_bands(code, name, dta_per_day, local_running_per_day))')
     .eq('id', user.id)
     .single()
 
@@ -161,7 +161,7 @@ export async function listStaff(): Promise<ActionResult<StaffWithDetails[]>> {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('staff')
-    .select('*, department:departments(*), level:levels(*)')
+    .select('*, department:departments(*), level:levels(*, band:grade_bands(code, name, dta_per_day, local_running_per_day))')
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -169,4 +169,42 @@ export async function listStaff(): Promise<ActionResult<StaffWithDetails[]>> {
   }
 
   return { success: true, data }
+}
+
+/**
+ * A minimal staff directory — name + designation — for the multi-traveller
+ * picker on the request form. Any authenticated user can call this (RLS:
+ * "Authenticated users can read staff directory"); it only ever returns
+ * active staff, and excludes the caller's own row since the requester is
+ * added automatically.
+ */
+export async function listStaffDirectory(): Promise<
+  ActionResult<{ id: string; name: string; level_name: string | null; department_name: string | null }[]>
+> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Not authenticated', data: [] }
+
+  const { data, error } = await supabase
+    .from('staff')
+    .select('id, first_name, surname, email, level:levels(name), department:departments(name)')
+    .eq('active', true)
+    .neq('id', user.id)
+    .order('first_name', { ascending: true })
+
+  if (error) return { success: false, error: error.message, data: [] }
+
+  return {
+    success: true,
+    data: (data ?? []).map((row) => {
+      const level = Array.isArray(row.level) ? row.level[0] : row.level
+      const department = Array.isArray(row.department) ? row.department[0] : row.department
+      return {
+        id: row.id,
+        name: [row.first_name, row.surname].filter(Boolean).join(' ') || row.email,
+        level_name: level?.name ?? null,
+        department_name: department?.name ?? null,
+      }
+    }),
+  }
 }

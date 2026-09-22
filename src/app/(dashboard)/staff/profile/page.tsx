@@ -66,11 +66,7 @@ export default async function ProfilePage() {
               <Field label="Role" value={staff.role} />
               <Field label="Department" value={staff.department?.name ?? '—'} />
               <Field label="Level" value={staff.level?.name ?? '—'} />
-              <Field
-                label="Travel Coverage"
-                value={staff.level ? `${staff.level.coverage_percent}% of allowance` : '—'}
-              />
-              <Field label="Flight Class" value={staff.level?.flight_class ?? '—'} />
+              <Field label="Grade Band" value={staff.level?.band?.name ?? '—'} />
             </div>
           </>
         )}

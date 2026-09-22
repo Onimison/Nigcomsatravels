@@ -9,9 +9,6 @@ export const rateReferenceSchema = z.object({
   mode: z.enum(['air', 'road'], {
     message: 'Please select a travel mode',
   }),
-  route_type: z.enum(['domestic', 'international'], {
-    message: 'Please select domestic or international',
-  }),
   accommodation_rate: z.number().nonnegative('Rate cannot be negative').nullable().optional(),
   per_diem_rate: z.number().nonnegative('Rate cannot be negative').nullable().optional(),
   flight_estimate: z.number().nonnegative('Rate cannot be negative').nullable().optional(),
@@ -22,11 +19,5 @@ export const updateRateReferenceSchema = rateReferenceSchema.partial().extend({
   id: z.string().uuid(),
 })
 
-/** PRD Section 5.2: FX rate must be a positive multiplier (USD → NGN). */
-export const fxRateSchema = z.object({
-  rate: z.number().positive('Exchange rate must be greater than zero'),
-})
-
 export type RateReferenceInput = z.infer<typeof rateReferenceSchema>
 export type UpdateRateReferenceInput = z.infer<typeof updateRateReferenceSchema>
-export type FxRateInput = z.infer<typeof fxRateSchema>

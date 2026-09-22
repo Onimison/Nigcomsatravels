@@ -5,11 +5,8 @@ export const createLevelSchema = z.object({
     .string()
     .min(1, 'Level name is required')
     .max(100, 'Level name is too long'),
-  coverage_percent: z
-    .number()
-    .min(0, 'Coverage cannot be negative')
-    .max(100, 'Coverage cannot exceed 100%'),
-  flight_class: z.string().max(50, 'Flight class is too long').nullable().optional(),
+  band_id: z.string().uuid('Please select a grade band'),
+  sort_order: z.number().int().nullable().optional(),
 })
 
 export const updateLevelSchema = createLevelSchema.partial().extend({

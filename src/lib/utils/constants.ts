@@ -9,16 +9,14 @@ import type { RequestStatus, ApprovalStatus, UserRole } from '@/types/database'
 // Status Label Mappings (PRD Section 4)
 // ============================================================
 
-/** Key used in the app_settings table for the daily USD→NGN FX rate. */
-export const FX_RATE_SETTING_KEY = 'fx_rate_usd_ngn'
-
 export const REQUEST_STATUS_LABELS: Record<RequestStatus, string> = {
   pending_hr: 'Awaiting HR Review',
-  pending_md: 'Awaiting MD Approval',
-  hr_rejected: 'Returned by HR for Revision',
-  md_rejected: 'Returned by MD for Revision',
-  rejected_final: 'Rejected (Final)',
+  hr_returned: 'Returned by HR for Revision',
+  queued_for_erp: 'Priced — Ready for ERP',
+  in_erp: 'In ERP',
   approved: 'Approved',
+  rejected: 'Rejected',
+  rejected_final: 'Rejected (Final)',
 } as const
 
 export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
@@ -44,11 +42,12 @@ export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
  */
 export const REQUEST_STATUS_COLORS: Record<RequestStatus, string> = {
   pending_hr: 'bg-amber-100 text-amber-800',
-  pending_md: 'bg-blue-100 text-blue-800',
-  hr_rejected: 'bg-amber-100 text-amber-800',
-  md_rejected: 'bg-amber-100 text-amber-800',
-  rejected_final: 'bg-red-100 text-red-800',
+  hr_returned: 'bg-amber-100 text-amber-800',
+  queued_for_erp: 'bg-blue-100 text-blue-800',
+  in_erp: 'bg-blue-100 text-blue-800',
   approved: 'bg-green-100 text-green-800',
+  rejected: 'bg-red-100 text-red-800',
+  rejected_final: 'bg-red-100 text-red-800',
 } as const
 
 // ============================================================

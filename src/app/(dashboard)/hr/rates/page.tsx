@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { requireDashboardAccess } from '@/lib/utils/auth-guard'
-import { listFlightPriceReference, getFxRateOverride } from '@/lib/actions/rates.actions'
+import { listFlightPriceReference } from '@/lib/actions/rates.actions'
 import { FlightPricePanel } from '@/components/hr/flight-price-panel'
 import { PageHeader } from '@/components/ui/page-header'
 import type { RateReferenceWithLevel } from '@/types/database'
@@ -25,12 +25,7 @@ export default async function HRRatesPage() {
     redirect('/')
   }
 
-  const [flightRatesResult, fxRateResult] = await Promise.all([
-    listFlightPriceReference(),
-    getFxRateOverride(),
-  ])
-
-  const fxRate = fxRateResult.success && fxRateResult.data ? Number(fxRateResult.data.value) : null
+  const flightRatesResult = await listFlightPriceReference()
 
   return (
     <div className="space-y-6">
@@ -42,7 +37,7 @@ export default async function HRRatesPage() {
         </p>
       )}
 
-      <FlightPricePanel rates={(flightRatesResult.data ?? []) as RateReferenceWithLevel[]} fxRate={fxRate} />
+      <FlightPricePanel rates={(flightRatesResult.data ?? []) as RateReferenceWithLevel[]} />
     </div>
   )
 }

@@ -1,155 +1,120 @@
 'use client'
 
 /**
- * The single-request review form — allowance entry, live fare lookup,
- * forward/reject. Lives entirely on its own page (`/hr/requests/[id]`),
- * one request at a time — not one instance per row in a long list, which is
- * what `hr-request-queue.tsx` used to render before the queue became a
- * compact, clickable list (todays-task.md: "clicking each one should only
- * open the particular review").
+ * The single-request review form — REVISED_SCOPE.md §7 (HR surface).
+ *
+ * The queue shows a computed total on arrival, not empty fields to fill —
+ * that's the change that removes the work. HR edits exactly three things:
+ * days allowed (trip-level) and transport/airport-taxi (per traveller).
+ * DTA and local running are locked policy, recomputed live as HR edits
+ * days — never hand-entered.
+ *
+ * The on-screen recompute uses the request's `policy_snapshot` (what the
+ * staff member saw at submit) so it updates instantly with no round trip;
+ * the server always recomputes from the *current* band/coverage/policy
+ * data when this is actually saved (§4.3 — server authority). If an admin
+ * changed a rate in between, the saved total reflects that, not this preview.
  */
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { hrReviewRequest, hrRejectRequest, getRateSuggestionForRequest } from '@/lib/actions/requests.actions'
+import { hrReviewRequest, hrRejectRequest } from '@/lib/actions/requests.actions'
+import { calculateTravellerCost, type PolicyDefaults } from '@/lib/policy/calculate'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { CashIcon } from '@/components/ui/icons'
 import { Money } from '@/components/ui/money'
 import { FlightLookupCard } from '@/components/hr/flight-lookup-card'
 import { departmentName, staffName } from '@/components/hr/request-row'
-import {
-  formatDate,
-  formatNGN,
-  usdToNgn,
-  ngnToUsd,
-  calculateTotalRawAllowance,
-  calculateFinalCost,
-  formatStaleness,
-} from '@/lib/utils/formatting'
-import type { TravelRequestForHR } from '@/types/database'
+import { formatDate } from '@/lib/utils/formatting'
+import type { TravelRequestForHR, RequestTravellerWithStaff } from '@/types/database'
 
-type AllowanceField = 'allowance_local' | 'allowance_flight' | 'allowance_taxi' | 'accommodation' | 'per_diem'
-
-const ALLOWANCE_FIELDS: { key: AllowanceField; label: string; suggestible: boolean }[] = [
-  { key: 'allowance_local', label: 'Local Running', suggestible: false },
-  { key: 'allowance_flight', label: 'Flight', suggestible: true },
-  { key: 'allowance_taxi', label: 'Airport Taxi', suggestible: true },
-  { key: 'accommodation', label: 'Accommodation', suggestible: true },
-  { key: 'per_diem', label: 'Per Diem', suggestible: true },
-]
-
-const EMPTY_ALLOWANCES: Record<AllowanceField, string> = {
-  allowance_local: '',
-  allowance_flight: '',
-  allowance_taxi: '',
-  accommodation: '',
-  per_diem: '',
+interface SnapshotBand {
+  dta_per_day: number
+  local_running_per_day: number
 }
 
-export function ReviewCard({ row, fxRate }: { row: TravelRequestForHR; fxRate: number | null }) {
-  const router = useRouter()
-  const coveragePercent = row.staff?.level?.coverage_percent ?? 100
+interface Snapshot {
+  coverage_percent?: number
+  policy_defaults?: PolicyDefaults
+  bands?: Record<string, SnapshotBand>
+}
 
-  const [allowances, setAllowances] = useState<Record<AllowanceField, string>>(EMPTY_ALLOWANCES)
+const FALLBACK_POLICY: PolicyDefaults = { airFarePerLeg: 150_000, roadFarePerLeg: 50_000, taxiPerLeg: 40_000 }
+
+function travellerName(t: RequestTravellerWithStaff): string {
+  if (!t.staff) return 'Unknown staff'
+  return [t.staff.first_name, t.staff.surname].filter(Boolean).join(' ') || t.staff.email
+}
+
+export function ReviewCard({ row }: { row: TravelRequestForHR }) {
+  const router = useRouter()
+  const snapshot = (row.policy_snapshot ?? {}) as Snapshot
+  const coveragePercent = row.coverage_percent_applied ?? snapshot.coverage_percent ?? 100
+  const policyDefaults = snapshot.policy_defaults ?? FALLBACK_POLICY
+  const mode = (row.mode as 'air' | 'road') ?? 'air'
+
+  const [daysApproved, setDaysApproved] = useState(String(row.days_approved ?? row.days_requested))
+  const [overrides, setOverrides] = useState<Record<string, { transport: string; taxi: string }>>(() =>
+    Object.fromEntries(
+      row.travellers.map((t) => [t.staff_id, { transport: String(t.transport_cost), taxi: String(t.airport_taxi) }])
+    )
+  )
   const [note, setNote] = useState('')
-  const [suggestion, setSuggestion] = useState<{ loading: boolean; checked: boolean; message: string | null }>({
-    loading: false,
-    checked: false,
-    message: null,
-  })
   const [pendingAction, setPendingAction] = useState<'forward' | 'reject' | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  // HR types these in Naira — what accommodation/flight/taxi quotes actually
-  // come in. Everything downstream (travel_requests columns, MD's dashboard,
-  // the audit trail) is USD, so the NGN entry is converted at this boundary,
-  // once, using the same rate that gets locked onto the request in
-  // hrReviewRequest() (PRD Section 5.2).
-  const parsedAllowancesNgn = useMemo(() => {
-    const parsed = {} as Record<AllowanceField, number>
-    for (const { key } of ALLOWANCE_FIELDS) {
-      const n = Number(allowances[key])
-      parsed[key] = Number.isFinite(n) ? n : 0
-    }
-    return parsed
-  }, [allowances])
+  const days = Number(daysApproved)
+  const validDays = Number.isFinite(days) && days >= 1
 
-  const rawTotalNgn = calculateTotalRawAllowance(parsedAllowancesNgn)
-  const finalCostNgn = calculateFinalCost(rawTotalNgn, coveragePercent)
-  const rawTotalUsd = fxRate ? ngnToUsd(rawTotalNgn, fxRate) : null
-  const finalCostUsd = fxRate ? ngnToUsd(finalCostNgn, fxRate) : null
-
-  function updateField(key: AllowanceField, value: string) {
-    setAllowances((prev) => ({ ...prev, [key]: value }))
-  }
-
-  async function handleSuggestRates() {
-    setSuggestion({ loading: true, checked: false, message: null })
-    const result = await getRateSuggestionForRequest(row.id)
-
-    if (!result.success || !result.data) {
-      setSuggestion({
-        loading: false,
-        checked: true,
-        message: result.success ? 'No reference rate found; enter amounts manually.' : (result.error ?? 'Could not load suggested rates.'),
+  const computed = useMemo(() => {
+    if (!validDays) return []
+    return row.travellers.map((t) => {
+      const band = snapshot.bands?.[t.grade_band_code]
+      const override = overrides[t.staff_id]
+      const result = calculateTravellerCost({
+        dtaPerDay: band?.dta_per_day ?? 0,
+        localRunningPerDay: band?.local_running_per_day ?? 0,
+        coveragePercent,
+        days,
+        mode,
+        oneWay: row.one_way,
+        policyDefaults,
+        transportOverride: override ? Number(override.transport) : undefined,
+        airportTaxiOverride: override ? Number(override.taxi) : undefined,
       })
-      return
-    }
-
-    if (!fxRate) {
-      setSuggestion({
-        loading: false,
-        checked: true,
-        message: 'No FX rate configured; enter amounts manually.',
-      })
-      return
-    }
-
-    const { data } = result
-    // Reference rates in the Master Rate Table are USD — convert to NGN,
-    // since that's what these fields take.
-    const toNgnString = (usd: number) => (Math.round(usdToNgn(usd, fxRate) * 100) / 100).toString()
-    setAllowances((prev) => ({
-      ...prev,
-      ...(data.allowance_flight != null && { allowance_flight: toNgnString(data.allowance_flight) }),
-      ...(data.allowance_taxi != null && { allowance_taxi: toNgnString(data.allowance_taxi) }),
-      ...(data.accommodation != null && { accommodation: toNgnString(data.accommodation) }),
-      ...(data.per_diem != null && { per_diem: toNgnString(data.per_diem) }),
-    }))
-    const staleness =
-      data.allowance_flight != null ? ` Flight price: ${formatStaleness(data.flightUpdatedAt).toLowerCase()}.` : ''
-    setSuggestion({
-      loading: false,
-      checked: true,
-      message: `Standard rates applied, converted to NGN at today's rate. Review before forwarding.${staleness}`,
+      return { staffId: t.staff_id, name: travellerName(t), ...result }
     })
+  }, [row.travellers, row.one_way, snapshot.bands, overrides, coveragePercent, days, mode, policyDefaults, validDays])
+
+  const grandTotal = computed.reduce((sum, t) => sum + t.total, 0)
+
+  function updateOverride(staffId: string, field: 'transport' | 'taxi', value: string) {
+    setOverrides((prev) => ({ ...prev, [staffId]: { ...prev[staffId], [field]: value } }))
   }
 
   async function handleForward() {
     setError(null)
 
-    for (const { key, label } of ALLOWANCE_FIELDS) {
-      if (allowances[key].trim() === '') {
-        setError(`Enter an amount for ${label} before forwarding`)
-        return
-      }
-    }
-
-    if (!fxRate) {
-      setError('No FX rate is configured. Contact an admin before forwarding.')
+    if (!validDays) {
+      setError('Enter a valid number of days')
       return
     }
+
+    const travellers = row.travellers.map((t) => {
+      const override = overrides[t.staff_id]
+      return {
+        staff_id: t.staff_id,
+        transport_cost: Number(override?.transport ?? 0),
+        airport_taxi: mode === 'road' ? 0 : Number(override?.taxi ?? 0),
+      }
+    })
 
     setPendingAction('forward')
     const result = await hrReviewRequest({
       request_id: row.id,
-      // Stored/calculated in USD — convert the NGN entry at the boundary.
-      allowance_local: ngnToUsd(parsedAllowancesNgn.allowance_local, fxRate),
-      allowance_flight: ngnToUsd(parsedAllowancesNgn.allowance_flight, fxRate),
-      allowance_taxi: ngnToUsd(parsedAllowancesNgn.allowance_taxi, fxRate),
-      accommodation: ngnToUsd(parsedAllowancesNgn.accommodation, fxRate),
-      per_diem: ngnToUsd(parsedAllowancesNgn.per_diem, fxRate),
+      days_approved: days,
+      travellers,
       hr_note: note.trim() || undefined,
     })
 
@@ -168,7 +133,7 @@ export function ReviewCard({ row, fxRate }: { row: TravelRequestForHR; fxRate: n
     setError(null)
 
     if (note.trim().length === 0) {
-      setError('A reason is required when rejecting a request')
+      setError('A reason is required when returning a request')
       return
     }
 
@@ -192,10 +157,11 @@ export function ReviewCard({ row, fxRate }: { row: TravelRequestForHR; fxRate: n
             {row.origin} → {row.destination}
           </p>
           <p className="mt-0.5 text-xs text-gray-500">
-            {staffName(row)} · {departmentName(row)}
+            {staffName(row)} · {departmentName(row)} · Memo {row.memo_number}
           </p>
           <p className="mt-0.5 text-xs text-gray-500">
-            {formatDate(row.depart_date)} – {formatDate(row.return_date)} · {row.days} day{row.days === 1 ? '' : 's'} · {row.mode}
+            {formatDate(row.depart_date)} – {formatDate(row.return_date)} · {row.days_requested} day{row.days_requested === 1 ? '' : 's'} requested · {mode}
+            {row.one_way && ' · one-way'}
           </p>
         </div>
         <span className="text-xs text-gray-400">Coverage: {coveragePercent}%</span>
@@ -233,30 +199,21 @@ export function ReviewCard({ row, fxRate }: { row: TravelRequestForHR; fxRate: n
             <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-blue-100 text-blue-600">
               <CashIcon className="h-3.5 w-3.5" />
             </span>
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Allowances (NGN)</p>
-              {fxRate && (
-                <p className="text-[11px] text-gray-400">1 USD ≈ {formatNGN(fxRate)}</p>
-              )}
-            </div>
+            <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Cost Breakdown (NGN)</p>
           </div>
-          <Button variant="outline" onClick={handleSuggestRates} disabled={suggestion.loading}>
-            {suggestion.loading ? 'Looking up rates…' : 'Suggest Standard Rates'}
-          </Button>
+          <div className="w-32">
+            <Input
+              label="Days Allowed"
+              type="number"
+              min={1}
+              value={daysApproved}
+              onChange={(e) => setDaysApproved(e.target.value)}
+            />
+          </div>
         </div>
 
-        {!fxRate && (
-          <p className="mt-2 text-xs text-red-600" role="alert">
-            No FX rate is configured — amounts can&apos;t be converted to USD for storage. Contact an admin.
-          </p>
-        )}
-
-        {suggestion.checked && suggestion.message && (
-          <p className="mt-2 text-xs text-blue-700">{suggestion.message}</p>
-        )}
-
         {/* Air trips only — there's no fare to look up for a road journey. */}
-        {row.mode === 'air' && (
+        {mode === 'air' && (
           <div className="mt-3">
             <FlightLookupCard
               originCode={row.origin_airport?.iata_code}
@@ -268,42 +225,65 @@ export function ReviewCard({ row, fxRate }: { row: TravelRequestForHR; fxRate: n
               destinationCity={row.destination_airport?.city ?? row.destination}
               departDate={row.depart_date}
               returnDate={row.return_date}
-              cabin={row.staff?.level?.flight_class}
             />
           </div>
         )}
 
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {ALLOWANCE_FIELDS.map(({ key, label }) => (
-            <Input
-              key={key}
-              id={`${key}-${row.id}`}
-              label={label}
-              type="number"
-              min={0}
-              step="0.01"
-              value={allowances[key]}
-              onChange={(e) => updateField(key, e.target.value)}
-              placeholder="0.00"
-            />
-          ))}
+        <div className="mt-3 space-y-3">
+          {computed.map((t) => {
+            const override = overrides[t.staffId]
+            return (
+              <div key={t.staffId} className="rounded-lg border border-gray-200 bg-white p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-gray-900">{t.name}</p>
+                  <Money ngn={t.total} size="sm" />
+                </div>
+                <div className="mt-2 grid gap-3 sm:grid-cols-4">
+                  <div>
+                    <p className="text-xs text-gray-500">DTA</p>
+                    <Money ngn={t.dta} size="sm" layout="inline" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Local Running</p>
+                    <Money ngn={t.localRunning} size="sm" layout="inline" />
+                  </div>
+                  <Input
+                    label="Transport"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={override?.transport ?? ''}
+                    onChange={(e) => updateOverride(t.staffId, 'transport', e.target.value)}
+                  />
+                  <Input
+                    label="Airport Taxi"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={mode === 'road' ? '0' : (override?.taxi ?? '')}
+                    onChange={(e) => updateOverride(t.staffId, 'taxi', e.target.value)}
+                    disabled={mode === 'road'}
+                  />
+                </div>
+              </div>
+            )
+          })}
         </div>
 
         <div className="mt-3 flex flex-wrap items-end justify-between gap-3 border-t border-gray-200 pt-3">
+          <p className="text-xs text-gray-500">
+            {row.travellers.length} traveller{row.travellers.length === 1 ? '' : 's'} · {coveragePercent}% coverage
+          </p>
           <div>
-            <p className="text-xs text-gray-500">Total Raw Allowance</p>
-            <Money ngn={rawTotalNgn} usd={rawTotalUsd} size="sm" />
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">Final Total ({coveragePercent}% coverage)</p>
-            <Money ngn={finalCostNgn} usd={finalCostUsd} size="lg" align="right" />
+            <p className="text-xs text-gray-500">Total</p>
+            <Money ngn={validDays ? grandTotal : null} size="lg" align="right" />
           </div>
         </div>
       </div>
 
       <div className="space-y-2 border-t border-gray-100 pt-3">
         <label className="block text-xs font-medium text-gray-700" htmlFor={`note-${row.id}`}>
-          Note to MD (optional when forwarding, required to reject)
+          Note (optional when forwarding, required to return)
         </label>
         <textarea
           id={`note-${row.id}`}
@@ -319,10 +299,10 @@ export function ReviewCard({ row, fxRate }: { row: TravelRequestForHR; fxRate: n
 
         <div className="flex flex-wrap gap-2 pt-1">
           <Button variant="primary" disabled={pendingAction !== null} onClick={handleForward}>
-            {pendingAction === 'forward' ? 'Forwarding…' : 'Forward to MD'}
+            {pendingAction === 'forward' ? 'Saving…' : 'Forward (ready for ERP)'}
           </Button>
           <Button variant="danger" disabled={pendingAction !== null} onClick={handleReject}>
-            {pendingAction === 'reject' ? 'Rejecting…' : 'Reject'}
+            {pendingAction === 'reject' ? 'Returning…' : 'Return to Staff'}
           </Button>
         </div>
       </div>

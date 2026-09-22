@@ -2,7 +2,6 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { getMyRequests } from '@/lib/actions/requests.actions'
 import { listAirports } from '@/lib/actions/airports.actions'
-import { getFxRateOverride } from '@/lib/actions/rates.actions'
 import { requireDashboardAccess } from '@/lib/utils/auth-guard'
 import { latestReason, type StaffRequestRow } from '@/components/staff/request-card'
 import { RequestFormClient } from '@/components/staff/request-form-client'
@@ -25,14 +24,9 @@ export default async function RequestTravelPage({
   }
 
   const { resubmit } = await searchParams
-  const [{ data }, { data: airports }, fxRateResult] = await Promise.all([
-    getMyRequests(),
-    listAirports(),
-    getFxRateOverride(),
-  ])
+  const [{ data }, { data: airports }] = await Promise.all([getMyRequests(), listAirports()])
   const requests = (data ?? []) as StaffRequestRow[]
   const airportOptions = airports ?? []
-  const fxRate = fxRateResult.success && fxRateResult.data ? Number(fxRateResult.data.value) : null
 
   let resubmitTarget: ResubmitTarget | null = null
   if (resubmit) {
@@ -40,15 +34,17 @@ export default async function RequestTravelPage({
     if (row) {
       resubmitTarget = {
         id: row.id,
+        memo_number: row.memo_number,
         destination: row.destination,
         origin: row.origin,
         destination_airport_id: row.destination_airport_id,
-        origin_airport_id: row.origin_airport_id,
         mode: row.mode,
-        days: row.days,
+        one_way: row.one_way,
+        days_requested: row.days_requested,
         depart_date: row.depart_date,
         return_date: row.return_date,
         reason_for_travel: row.reason_for_travel,
+        travellerStaffIds: row.travellers.map((t) => t.staff_id),
         rejectionReason: latestReason(row),
       }
     }
@@ -62,7 +58,7 @@ export default async function RequestTravelPage({
       />
 
       <section className="max-w-2xl rounded-xl border border-gray-200 bg-white p-6">
-        <RequestFormClient airports={airportOptions} resubmitTarget={resubmitTarget} fxRate={fxRate} />
+        <RequestFormClient airports={airportOptions} resubmitTarget={resubmitTarget} />
       </section>
     </div>
   )

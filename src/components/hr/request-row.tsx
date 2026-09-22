@@ -8,6 +8,7 @@
 
 import Link from 'next/link'
 import { formatDate } from '@/lib/utils/formatting'
+import { Money } from '@/components/ui/money'
 import type { TravelRequestForHR } from '@/types/database'
 
 export function departmentName(row: TravelRequestForHR): string {
@@ -33,10 +34,12 @@ export function RequestRow({ row }: { row: TravelRequestForHR }) {
           {staffName(row)} · {departmentName(row)}
         </p>
         <p className="mt-0.5 text-xs text-gray-500">
-          {formatDate(row.depart_date)} – {formatDate(row.return_date)} · {row.days} day{row.days === 1 ? '' : 's'}
+          {formatDate(row.depart_date)} – {formatDate(row.return_date)} · {row.days_requested} day{row.days_requested === 1 ? '' : 's'}
+          {row.travellers.length > 1 && <> · {row.travellers.length} travellers</>}
         </p>
       </div>
       <div className="text-right">
+        <Money ngn={row.request_total} size="sm" align="right" />
         <p className="text-xs text-gray-500">Submitted {formatDate(row.submitted_at)}</p>
         <div className="mt-1 flex justify-end gap-1">
           {row.previousRejectionReason && (

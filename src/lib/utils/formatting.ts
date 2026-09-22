@@ -1,7 +1,6 @@
 /**
- * Currency, date, and number formatting helpers.
- * PRD Section 5.1 — Cost Calculation
- * PRD Section 5.2 — FX Handling (NGN/USD display)
+ * Currency, date, and number formatting helpers. Cost calculation itself
+ * lives in `src/lib/policy/calculate.ts`.
  */
 
 // ============================================================
@@ -18,74 +17,6 @@ export function formatNGN(amount: number): string {
     currency: 'NGN',
     minimumFractionDigits: 2,
   }).format(amount)
-}
-
-/**
- * Format a number as US Dollars.
- * @example formatUSD(1200) => "$1,200.00"
- */
-export function formatUSD(amount: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-  }).format(amount)
-}
-
-/**
- * Convert USD to NGN using a given exchange rate.
- * PRD Section 5.2: Costs stored in USD, displayed with NGN equivalent.
- */
-export function usdToNgn(amountUsd: number, fxRate: number): number {
-  return amountUsd * fxRate
-}
-
-/**
- * Convert NGN to USD using a given exchange rate — the inverse of
- * `usdToNgn`. HR prices allowances in Naira (what their quotes actually
- * come in), and this is what turns that entry into the USD figure the rest
- * of the app stores and calculates on (PRD Section 5.2).
- */
-export function ngnToUsd(amountNgn: number, fxRate: number): number {
-  if (!fxRate) return 0
-  return amountNgn / fxRate
-}
-
-// ============================================================
-// Cost Calculation (PRD Section 5.1)
-// ============================================================
-
-interface AllowanceFields {
-  allowance_local: number
-  allowance_flight: number
-  allowance_taxi: number
-  accommodation: number
-  per_diem: number
-}
-
-/**
- * Calculate the total raw allowance before coverage is applied.
- * PRD: Total_Raw_Allowance = local + flight + taxi + accommodation + per_diem
- */
-export function calculateTotalRawAllowance(fields: AllowanceFields): number {
-  return (
-    fields.allowance_local +
-    fields.allowance_flight +
-    fields.allowance_taxi +
-    fields.accommodation +
-    fields.per_diem
-  )
-}
-
-/**
- * Calculate the final cost after coverage percentage is applied.
- * PRD: Final_Cost = Total_Raw_Allowance × (coverage_percent / 100)
- */
-export function calculateFinalCost(
-  totalRawAllowance: number,
-  coveragePercent: number
-): number {
-  return totalRawAllowance * (coveragePercent / 100)
 }
 
 // ============================================================

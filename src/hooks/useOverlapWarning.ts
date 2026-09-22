@@ -4,8 +4,8 @@
  * Custom hook to check if new travel dates overlap with existing trips.
  * PRD Section 3.1 — Date-Overlap Warning
  *
- * "If new travel dates overlap with any existing pending_hr, pending_md,
- *  or approved request, the system displays a warning."
+ * "If new travel dates overlap with any existing active request, the
+ *  system displays a warning."
  *
  * Usage:
  *   const { overlaps, isChecking } = useOverlapWarning(departDate, returnDate)
@@ -58,7 +58,7 @@ export function useOverlapWarning(
           .from('travel_requests')
           .select('id, destination, depart_date, return_date')
           .eq('staff_id', user.id)
-          .in('status', ['pending_hr', 'pending_md', 'approved'])
+          .in('status', ['pending_hr', 'queued_for_erp', 'in_erp', 'approved'])
 
         if (!requests || controller.signal.aborted) {
           setOverlaps([])

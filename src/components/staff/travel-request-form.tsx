@@ -1,29 +1,36 @@
 'use client'
 
 /**
- * Request to Travel form — PRD Section 3.1
+ * Request to Travel form — REVISED_SCOPE.md §7 (Staff surface).
  *
- * Handles both new submissions and resubmissions of a rejected request
+ * Handles both new submissions and resubmissions of a returned request
  * (same shape, different server action + a visible "what to fix" banner).
  *
- * - Destination/Origin are picked from the seeded airports list
- *   (20260822160000_airports.sql) so every request carries a machine-usable
- *   route key, with an "Other — not listed" escape hatch that keeps road
- *   trips and unseeded cities submittable.
- * - Pre-Submit Estimate: queries rate_reference via getRequestEstimate(),
- *   labeled "Subject to HR verification."
+ * - Step 1 is the memo number the ERP already generated for this trip.
+ * - Origin is one of the four duty stations; destination is the seeded
+ *   airports list (20260822160000_airports.sql) with an "Other — not
+ *   listed" escape hatch for road-only places.
+ * - Days are computed from the date range, not typed — the policy is
+ *   explicit that DTA/local running key off an inclusive day count.
+ * - Most requests are one person, so the traveller picker stays collapsed
+ *   until opened; the requester rides along automatically.
+ * - Pre-Submit Estimate: the requester's own line, priced through the same
+ *   calculator the server uses — "Subject to HR verification."
  * - Date-Overlap Warning: via useOverlapWarning(), warning only — never blocks submit.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   submitRequest,
   resubmitRequest,
   getRequestEstimate,
 } from '@/lib/actions/requests.actions'
+import { listStaffDirectory } from '@/lib/actions/staff.actions'
 import { useOverlapWarning } from '@/hooks/useOverlapWarning'
-import { formatDate, usdToNgn } from '@/lib/utils/formatting'
+import { DUTY_STATIONS } from '@/lib/validations/request.schema'
+import { formatDate } from '@/lib/utils/formatting'
+import { daysBetweenInclusive } from '@/lib/policy/calculate'
 import { queueToast } from '@/lib/utils/toast'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
@@ -33,22 +40,24 @@ import { Money } from '@/components/ui/money'
 import type { AirportOption, TravelMode } from '@/types/database'
 
 /**
- * Sentinel for the free-text escape hatch. Not a uuid, so it can never be
- * mistaken for an airport id by the server-side resolver.
+ * Sentinel for the destination free-text escape hatch. Not a uuid, so it
+ * can never be mistaken for an airport id by the server-side resolver.
  */
 const OTHER = '__other__'
 
 export interface ResubmitTarget {
   id: string
+  memo_number: string
   destination: string
   origin: string | null
   destination_airport_id: string | null
-  origin_airport_id: string | null
   mode: string | null
-  days: number | null
+  one_way: boolean
+  days_requested: number | null
   depart_date: string
   return_date: string
   reason_for_travel: string | null
+  travellerStaffIds: string[]
   rejectionReason: string | null
 }
 
@@ -56,31 +65,23 @@ interface TravelRequestFormProps {
   airports: AirportOption[]
   resubmitTarget?: ResubmitTarget | null
   onCancelResubmit?: () => void
-  /** For converting the pre-submit estimate (rate_reference is USD) to the NGN staff actually see. */
-  fxRate?: number | null
 }
 
 const EMPTY_FORM = {
+  memoNumber: '',
   destinationChoice: '',
   destinationOther: '',
-  originChoice: '',
-  originOther: '',
+  origin: DUTY_STATIONS[0] as string,
   mode: 'air' as TravelMode,
-  days: '',
+  oneWay: false,
   departDate: '',
   returnDate: '',
   reason: '',
-}
-
-function daysBetween(start: string, end: string): number | null {
-  if (!start || !end) return null
-  const ms = new Date(end).getTime() - new Date(start).getTime()
-  if (Number.isNaN(ms) || ms < 0) return null
-  return Math.floor(ms / 86_400_000) + 1
+  travellerIds: [] as string[],
 }
 
 /**
- * Picks the dropdown state for one end of a resubmitted trip. Prefers the
+ * Picks the destination dropdown state for a resubmitted trip. Prefers the
  * stored FK, falls back to matching the stored text against a city (rows
  * predating the airports migration have no FK), and only then drops to the
  * free-text hatch.
@@ -110,85 +111,21 @@ function buildInitialForm(
     resubmitTarget.destination,
     airports
   )
-  const origin = resolveChoice(
-    resubmitTarget.origin_airport_id,
-    resubmitTarget.origin ?? '',
-    airports
-  )
 
   return {
+    memoNumber: resubmitTarget.memo_number,
     destinationChoice: destination.choice,
     destinationOther: destination.other,
-    originChoice: origin.choice,
-    originOther: origin.other,
+    origin: DUTY_STATIONS.includes(resubmitTarget.origin as (typeof DUTY_STATIONS)[number])
+      ? (resubmitTarget.origin as string)
+      : DUTY_STATIONS[0],
     mode: (resubmitTarget.mode as TravelMode) ?? 'air',
-    days: resubmitTarget.days ? String(resubmitTarget.days) : '',
+    oneWay: resubmitTarget.one_way,
     departDate: resubmitTarget.depart_date,
     returnDate: resubmitTarget.return_date,
     reason: resubmitTarget.reason_for_travel ?? '',
+    travellerIds: resubmitTarget.travellerStaffIds,
   }
-}
-
-function EndpointField({
-  id,
-  label,
-  grouped,
-  choice,
-  other,
-  onChoiceChange,
-  onOtherChange,
-}: {
-  id: string
-  label: string
-  grouped: { domestic: AirportOption[]; international: AirportOption[] }
-  choice: string
-  other: string
-  onChoiceChange: (value: string) => void
-  onOtherChange: (value: string) => void
-}) {
-  return (
-    <div className="space-y-2">
-      <Select
-        id={id}
-        label={label}
-        required
-        value={choice}
-        onChange={(e) => onChoiceChange(e.target.value)}
-      >
-        <option value="">Select {label.toLowerCase()}…</option>
-        {grouped.domestic.length > 0 && (
-          <optgroup label="Nigeria">
-            {grouped.domestic.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.city} ({a.iata_code})
-              </option>
-            ))}
-          </optgroup>
-        )}
-        {grouped.international.length > 0 && (
-          <optgroup label="International">
-            {grouped.international.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.city} ({a.iata_code})
-              </option>
-            ))}
-          </optgroup>
-        )}
-        <option value={OTHER}>Other — not listed</option>
-      </Select>
-
-      {choice === OTHER && (
-        <Input
-          id={`${id}-other`}
-          required
-          value={other}
-          onChange={(e) => onOtherChange(e.target.value)}
-          placeholder="Type the city name"
-          aria-label={`${label} — city not listed`}
-        />
-      )}
-    </div>
-  )
 }
 
 /**
@@ -200,18 +137,29 @@ export function TravelRequestForm({
   airports,
   resubmitTarget,
   onCancelResubmit,
-  fxRate = null,
 }: TravelRequestFormProps) {
   const router = useRouter()
   const [form, setForm] = useState(() => buildInitialForm(airports, resubmitTarget))
-  const daysTouched = useRef(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [showTravellers, setShowTravellers] = useState(form.travellerIds.length > 0)
 
-  const [estimate, setEstimate] = useState<{ checked: boolean; value: number | null }>({
-    checked: false,
-    value: null,
-  })
+  const [directory, setDirectory] = useState<
+    { id: string; name: string; level_name: string | null; department_name: string | null }[]
+  >([])
+
+  useEffect(() => {
+    listStaffDirectory().then((result) => {
+      if (result.success) setDirectory(result.data ?? [])
+    })
+  }, [])
+
+  const [estimate, setEstimate] = useState<{
+    checked: boolean
+    total: number | null
+    coveragePercent: number | null
+    bandName: string | null
+  }>({ checked: false, total: null, coveragePercent: null, bandName: null })
 
   const grouped = useMemo(
     () => ({
@@ -224,39 +172,35 @@ export function TravelRequestForm({
   const airportById = useMemo(() => new Map(airports.map((a) => [a.id, a])), [airports])
 
   /** The city text a choice resolves to — '' until something valid is picked. */
-  function endpointText(choice: string, other: string): string {
+  function destinationText(choice: string, other: string): string {
     if (choice === OTHER) return other.trim()
     return airportById.get(choice)?.city ?? ''
   }
 
-  const destination = endpointText(form.destinationChoice, form.destinationOther)
-  const origin = endpointText(form.originChoice, form.originOther)
-
-  // Auto-suggest "days" from the date range, unless the user has typed their own value.
-  useEffect(() => {
-    if (daysTouched.current) return
-    const suggested = daysBetween(form.departDate, form.returnDate)
-    if (suggested !== null) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- derived from dates, no external system involved
-      setForm((f) => ({ ...f, days: String(suggested) }))
-    }
-  }, [form.departDate, form.returnDate])
+  const destination = destinationText(form.destinationChoice, form.destinationOther)
+  const daysRequested = form.departDate && form.returnDate
+    ? daysBetweenInclusive(form.departDate, form.returnDate)
+    : null
 
   // Pre-submit estimate — debounced, since the free-text hatch still types.
   useEffect(() => {
-    if (destination.length < 2) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- resets stale estimate when destination is cleared
-      setEstimate({ checked: false, value: null })
+    if (destination.length < 2 || !daysRequested || daysRequested < 1) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- resets stale estimate when inputs are incomplete
+      setEstimate({ checked: false, total: null, coveragePercent: null, bandName: null })
       return
     }
 
     const timer = setTimeout(async () => {
-      const result = await getRequestEstimate(destination, form.mode)
-      setEstimate({ checked: true, value: result.success ? (result.data?.estimate ?? null) : null })
+      const result = await getRequestEstimate(destination, form.mode, daysRequested, form.oneWay)
+      setEstimate(
+        result.success && result.data
+          ? { checked: true, total: result.data.total, coveragePercent: result.data.coveragePercent, bandName: result.data.bandName }
+          : { checked: true, total: null, coveragePercent: null, bandName: null }
+      )
     }, 500)
 
     return () => clearTimeout(timer)
-  }, [destination, form.mode])
+  }, [destination, form.mode, form.oneWay, daysRequested])
 
   const { overlaps } = useOverlapWarning(
     form.departDate || null,
@@ -268,26 +212,31 @@ export function TravelRequestForm({
     setForm((f) => ({ ...f, [key]: value }))
   }
 
-  /** The FK to file, or null when the endpoint came through the free-text hatch. */
-  function airportIdFor(choice: string): string | null {
-    return choice && choice !== OTHER ? choice : null
+  function toggleTraveller(id: string) {
+    setForm((f) => ({
+      ...f,
+      travellerIds: f.travellerIds.includes(id)
+        ? f.travellerIds.filter((t) => t !== id)
+        : [...f.travellerIds, id],
+    }))
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
 
-    const parsedDays = Number(form.days)
     const input = {
+      memo_number: form.memoNumber.trim(),
       destination,
-      origin,
-      destination_airport_id: airportIdFor(form.destinationChoice),
-      origin_airport_id: airportIdFor(form.originChoice),
+      origin: form.origin as (typeof DUTY_STATIONS)[number],
+      destination_airport_id: form.destinationChoice && form.destinationChoice !== OTHER ? form.destinationChoice : null,
+      origin_airport_id: null,
       mode: form.mode,
-      days: Number.isFinite(parsedDays) ? parsedDays : 0,
+      one_way: form.oneWay,
       depart_date: form.departDate,
       return_date: form.returnDate,
       reason_for_travel: form.reason.trim(),
+      traveller_staff_ids: form.travellerIds,
     }
 
     setIsSubmitting(true)
@@ -329,27 +278,66 @@ export function TravelRequestForm({
         </div>
       )}
 
+      <Input
+        id="memo_number"
+        label="ERP Memo Number"
+        required
+        value={form.memoNumber}
+        onChange={(e) => updateField('memoNumber', e.target.value)}
+        placeholder="e.g. TR/2026/00123"
+      />
+
       <div className="space-y-3">
         <h3 className="text-sm font-semibold text-gray-700">Trip Details</h3>
         <div className="grid items-start gap-4 sm:grid-cols-3">
-          <EndpointField
-            id="destination"
-            label="Destination"
-            grouped={grouped}
-            choice={form.destinationChoice}
-            other={form.destinationOther}
-            onChoiceChange={(v) => updateField('destinationChoice', v)}
-            onOtherChange={(v) => updateField('destinationOther', v)}
-          />
-          <EndpointField
+          <Select
             id="origin"
-            label="Origin"
-            grouped={grouped}
-            choice={form.originChoice}
-            other={form.originOther}
-            onChoiceChange={(v) => updateField('originChoice', v)}
-            onOtherChange={(v) => updateField('originOther', v)}
+            label="Origin (duty station)"
+            required
+            value={form.origin}
+            onChange={(e) => updateField('origin', e.target.value)}
+            options={DUTY_STATIONS.map((city) => ({ label: city, value: city }))}
           />
+          <div className="space-y-2">
+            <Select
+              id="destination"
+              label="Destination"
+              required
+              value={form.destinationChoice}
+              onChange={(e) => updateField('destinationChoice', e.target.value)}
+            >
+              <option value="">Select destination…</option>
+              {grouped.domestic.length > 0 && (
+                <optgroup label="Nigeria">
+                  {grouped.domestic.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.city} ({a.iata_code})
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {grouped.international.length > 0 && (
+                <optgroup label="International">
+                  {grouped.international.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.city} ({a.iata_code})
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              <option value={OTHER}>Other — not listed</option>
+            </Select>
+            {form.destinationChoice === OTHER && (
+              <Input
+                id="destination-other"
+                required
+                value={form.destinationOther}
+                onChange={(e) => updateField('destinationOther', e.target.value)}
+                placeholder="Type the city name"
+                aria-label="Destination — city not listed"
+              />
+            )}
+          </div>
           <Select
             id="mode"
             label="Mode of Travel"
@@ -361,11 +349,20 @@ export function TravelRequestForm({
             ]}
           />
         </div>
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={form.oneWay}
+            onChange={(e) => updateField('oneWay', e.target.checked)}
+            className="rounded border-gray-300"
+          />
+          One-way trip
+        </label>
       </div>
 
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-gray-700">Dates &amp; Duration</h3>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <h3 className="text-sm font-semibold text-gray-700">Dates</h3>
+        <div className="grid gap-4 sm:grid-cols-2">
           <Input
             id="depart_date"
             label="Departure Date"
@@ -383,19 +380,15 @@ export function TravelRequestForm({
             value={form.returnDate}
             onChange={(e) => updateField('returnDate', e.target.value)}
           />
-          <Input
-            id="days"
-            label="Number of Days"
-            type="number"
-            min={1}
-            required
-            value={form.days}
-            onChange={(e) => {
-              daysTouched.current = true
-              updateField('days', e.target.value)
-            }}
-          />
         </div>
+        {daysRequested !== null && (
+          <p className="text-sm text-gray-500">
+            {daysRequested} day{daysRequested === 1 ? '' : 's'}
+            {form.departDate && form.returnDate && (
+              <> · {formatDate(form.departDate)} – {formatDate(form.returnDate)}</>
+            )}
+          </p>
+        )}
       </div>
 
       <Textarea
@@ -407,6 +400,42 @@ export function TravelRequestForm({
         value={form.reason}
         onChange={(e) => updateField('reason', e.target.value)}
       />
+
+      <div className="space-y-2 rounded-lg border border-gray-200 p-3">
+        <button
+          type="button"
+          onClick={() => setShowTravellers((v) => !v)}
+          className="text-sm font-medium text-blue-700"
+        >
+          {showTravellers ? 'Hide' : 'Travelling with others?'}
+        </button>
+        <p className="text-xs text-gray-500">
+          You&apos;re added automatically. Add colleagues if this memo covers more than one traveller —
+          each is priced at their own grade.
+        </p>
+        {showTravellers && (
+          <div className="mt-2 max-h-48 space-y-1 overflow-y-auto">
+            {directory.length === 0 ? (
+              <p className="text-sm text-gray-400">No other staff found.</p>
+            ) : (
+              directory.map((s) => (
+                <label key={s.id} className="flex items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-gray-50">
+                  <input
+                    type="checkbox"
+                    checked={form.travellerIds.includes(s.id)}
+                    onChange={() => toggleTraveller(s.id)}
+                    className="rounded border-gray-300"
+                  />
+                  <span>{s.name}</span>
+                  <span className="text-xs text-gray-400">
+                    {[s.level_name, s.department_name].filter(Boolean).join(' · ')}
+                  </span>
+                </label>
+              ))
+            )}
+          </div>
+        )}
+      </div>
 
       {overlaps.length > 0 && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
@@ -424,20 +453,21 @@ export function TravelRequestForm({
 
       {estimate.checked && (
         <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-          {estimate.value !== null ? (
-            <div className="flex flex-wrap items-baseline gap-x-1.5">
-              <span>Estimated allowance:</span>
-              <Money
-                ngn={fxRate ? usdToNgn(estimate.value, fxRate) : null}
-                usd={estimate.value}
-                size="sm"
-                layout="inline"
-                className="!text-blue-900"
-              />
-              <span>· Subject to HR verification.</span>
-            </div>
+          {estimate.total !== null ? (
+            <>
+              <div className="flex flex-wrap items-baseline gap-x-1.5">
+                <span>Your estimated allowance:</span>
+                <Money ngn={estimate.total} size="sm" layout="inline" className="!text-blue-900" />
+                <span>· Subject to HR verification.</span>
+              </div>
+              {estimate.coveragePercent !== null && estimate.coveragePercent < 100 && (
+                <p className="mt-1 text-xs text-blue-700">
+                  {destination} is not Lagos, Abuja or Port Harcourt, so DTA and local running are at {estimate.coveragePercent}%.
+                </p>
+              )}
+            </>
           ) : (
-            'No reference rate found; HR will compute manually.'
+            'Your grade isn\'t set up yet — HR will compute this manually.'
           )}
         </div>
       )}

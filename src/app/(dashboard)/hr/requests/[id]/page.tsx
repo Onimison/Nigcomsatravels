@@ -3,7 +3,6 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { requireDashboardAccess } from '@/lib/utils/auth-guard'
 import { getPendingHRRequests } from '@/lib/actions/requests.actions'
-import { getFxRateOverride } from '@/lib/actions/rates.actions'
 import { ReviewCard } from '@/components/hr/review-card'
 import { ArrowLeftIcon } from '@/components/ui/icons'
 
@@ -29,7 +28,7 @@ export default async function HRRequestDetailPage({ params }: { params: Promise<
   }
 
   const { id } = await params
-  const [pendingResult, fxRateResult] = await Promise.all([getPendingHRRequests(), getFxRateOverride()])
+  const pendingResult = await getPendingHRRequests()
   const row = pendingResult.data?.find((r) => r.id === id)
 
   // Not pending — already handled (by this HR user or someone else while
@@ -38,8 +37,6 @@ export default async function HRRequestDetailPage({ params }: { params: Promise<
   if (!row) {
     notFound()
   }
-
-  const fxRate = fxRateResult.success && fxRateResult.data ? Number(fxRateResult.data.value) : null
 
   return (
     <div className="space-y-6">
@@ -51,7 +48,7 @@ export default async function HRRequestDetailPage({ params }: { params: Promise<
         Back to Review Queue
       </Link>
 
-      <ReviewCard row={row} fxRate={fxRate} />
+      <ReviewCard row={row} />
     </div>
   )
 }

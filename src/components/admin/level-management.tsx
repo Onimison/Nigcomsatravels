@@ -1,10 +1,15 @@
 'use client'
 
 /**
- * Level Configuration — PRD Section 3.4: "Edit coverage_percent and
- * flight_class mapping per level — no code deployment required." This is
- * the actual mechanism the demo travel policy runs on (TRAVEL_POLICY_DEMO.md)
- * — every number in that policy is editable here.
+ * Level Configuration — designation → grade band mapping
+ * (REVISED_SCOPE.md §3/§7 Admin surface). Fourteen real designations, each
+ * mapped to exactly one of four rate bands; the mapping is exhaustive with
+ * hard failure by construction (`band_id` is NOT NULL), so an unmapped
+ * grade can't exist as a level row in the first place.
+ *
+ * Editing the band *rates* themselves (dta_per_day / local_running_per_day)
+ * happens in GradeBandManagement, not here — this screen only edits which
+ * band a designation maps to.
  */
 
 import { useState } from 'react'
@@ -12,11 +17,12 @@ import { useRouter } from 'next/navigation'
 import { addLevel, editLevel } from '@/lib/actions/levels.actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import type { Level } from '@/types/database'
+import { Select } from '@/components/ui/select'
+import type { GradeBand, LevelWithBand } from '@/types/database'
 
-const EMPTY_FORM = { name: '', coverage_percent: '', flight_class: '' }
+const EMPTY_FORM = { name: '', band_id: '' }
 
-function AddLevelForm({ onDone }: { onDone: () => void }) {
+function AddLevelForm({ bands, onDone }: { bands: GradeBand[]; onDone: () => void }) {
   const router = useRouter()
   const [form, setForm] = useState(EMPTY_FORM)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -26,18 +32,13 @@ function AddLevelForm({ onDone }: { onDone: () => void }) {
     e.preventDefault()
     setError(null)
 
-    const coverage = Number(form.coverage_percent)
-    if (!form.name.trim() || !Number.isFinite(coverage)) {
-      setError('Name and a numeric coverage percentage are required')
+    if (!form.name.trim() || !form.band_id) {
+      setError('Name and a grade band are required')
       return
     }
 
     setIsSubmitting(true)
-    const result = await addLevel({
-      name: form.name.trim(),
-      coverage_percent: coverage,
-      flight_class: form.flight_class.trim() || undefined,
-    })
+    const result = await addLevel({ name: form.name.trim(), band_id: form.band_id })
     setIsSubmitting(false)
 
     if (!result.success) {
@@ -55,29 +56,23 @@ function AddLevelForm({ onDone }: { onDone: () => void }) {
       className="mt-4 flex flex-wrap items-end gap-3 rounded-lg border border-gray-100 bg-gray-50 p-4"
     >
       <Input
-        label="Grade Name"
+        label="Designation"
         value={form.name}
         onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
         placeholder="e.g. Assistant Manager"
         required
       />
-      <Input
-        label="Coverage %"
-        type="number"
-        min={0}
-        max={100}
-        value={form.coverage_percent}
-        onChange={(e) => setForm((f) => ({ ...f, coverage_percent: e.target.value }))}
-        required
-        className="w-28"
-      />
-      <Input
-        label="Flight Class"
-        value={form.flight_class}
-        onChange={(e) => setForm((f) => ({ ...f, flight_class: e.target.value }))}
-        placeholder="economy"
-        className="w-36"
-      />
+      <Select
+        label="Grade Band"
+        value={form.band_id}
+        onChange={(e) => setForm((f) => ({ ...f, band_id: e.target.value }))}
+        className="w-56"
+      >
+        <option value="">Select band…</option>
+        {bands.map((b) => (
+          <option key={b.id} value={b.id}>{b.code} — {b.name}</option>
+        ))}
+      </Select>
       {error && <p className="text-sm text-red-600" role="alert">{error}</p>}
       <div className="flex gap-2">
         <Button type="submit" disabled={isSubmitting}>
@@ -91,26 +86,15 @@ function AddLevelForm({ onDone }: { onDone: () => void }) {
   )
 }
 
-function LevelRow({ level }: { level: Level }) {
+function LevelRow({ level, bands }: { level: LevelWithBand; bands: GradeBand[] }) {
   const router = useRouter()
   const [editing, setEditing] = useState(false)
-  const [coverage, setCoverage] = useState(String(level.coverage_percent))
-  const [flightClass, setFlightClass] = useState(level.flight_class ?? '')
+  const [bandId, setBandId] = useState(level.band_id)
   const [isSaving, setIsSaving] = useState(false)
 
   async function handleSave() {
-    const coverageNum = Number(coverage)
-    if (!Number.isFinite(coverageNum) || coverageNum < 0 || coverageNum > 100) {
-      window.alert('Coverage must be a number between 0 and 100')
-      return
-    }
-
     setIsSaving(true)
-    const result = await editLevel({
-      id: level.id,
-      coverage_percent: coverageNum,
-      flight_class: flightClass.trim() || undefined,
-    })
+    const result = await editLevel({ id: level.id, band_id: bandId })
     setIsSaving(false)
 
     if (!result.success) {
@@ -127,31 +111,15 @@ function LevelRow({ level }: { level: Level }) {
       <td className="whitespace-nowrap py-3 pr-4 font-medium text-gray-900">{level.name}</td>
       <td className="whitespace-nowrap py-3 pr-4">
         {editing ? (
-          <div className="w-20">
-            <Input
-              type="number"
-              min={0}
-              max={100}
-              value={coverage}
-              onChange={(e) => setCoverage(e.target.value)}
-              className="px-2 py-1"
-            />
+          <div className="w-56">
+            <Select value={bandId} onChange={(e) => setBandId(e.target.value)}>
+              {bands.map((b) => (
+                <option key={b.id} value={b.id}>{b.code} — {b.name}</option>
+              ))}
+            </Select>
           </div>
         ) : (
-          <span className="text-sm text-gray-700">{level.coverage_percent}%</span>
-        )}
-      </td>
-      <td className="whitespace-nowrap py-3 pr-4">
-        {editing ? (
-          <div className="w-28">
-            <Input
-              value={flightClass}
-              onChange={(e) => setFlightClass(e.target.value)}
-              className="px-2 py-1 capitalize"
-            />
-          </div>
-        ) : (
-          <span className="text-sm capitalize text-gray-700">{level.flight_class ?? '—'}</span>
+          <span className="text-sm text-gray-700">{level.band ? `${level.band.code} — ${level.band.name}` : '—'}</span>
         )}
       </td>
       <td className="whitespace-nowrap py-3 text-right">
@@ -174,9 +142,9 @@ function LevelRow({ level }: { level: Level }) {
   )
 }
 
-export function LevelManagement({ levels }: { levels: Level[] }) {
+export function LevelManagement({ levels, bands }: { levels: LevelWithBand[]; bands: GradeBand[] }) {
   const [showAddForm, setShowAddForm] = useState(false)
-  const sorted = [...levels].sort((a, b) => a.coverage_percent - b.coverage_percent)
+  const sorted = [...levels].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
 
   return (
     <div id="levels">
@@ -184,13 +152,15 @@ export function LevelManagement({ levels }: { levels: Level[] }) {
         <div>
           <h2 className="text-lg font-semibold text-gray-900">Level Configuration</h2>
           <p className="mt-1 text-sm text-gray-500">
-            Coverage percentage and flight class per grade — this is the demo travel policy (see TRAVEL_POLICY_DEMO.md).
+            Designation → grade band mapping. Band rates themselves are edited under Rates.
           </p>
         </div>
-        <Button onClick={() => setShowAddForm((v) => !v)}>{showAddForm ? 'Close' : '+ Add Level'}</Button>
+        <Button onClick={() => setShowAddForm((v) => !v)} disabled={bands.length === 0}>
+          {showAddForm ? 'Close' : '+ Add Level'}
+        </Button>
       </div>
 
-      {showAddForm && <AddLevelForm onDone={() => setShowAddForm(false)} />}
+      {showAddForm && <AddLevelForm bands={bands} onDone={() => setShowAddForm(false)} />}
 
       {sorted.length === 0 ? (
         <p className="mt-4 text-sm text-gray-500">No levels configured yet.</p>
@@ -199,15 +169,14 @@ export function LevelManagement({ levels }: { levels: Level[] }) {
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-gray-200 text-xs font-medium uppercase tracking-wide text-gray-400">
-                <th className="py-2 pr-4">Grade</th>
-                <th className="py-2 pr-4">Coverage</th>
-                <th className="py-2 pr-4">Flight Class</th>
+                <th className="py-2 pr-4">Designation</th>
+                <th className="py-2 pr-4">Grade Band</th>
                 <th className="py-2" />
               </tr>
             </thead>
             <tbody>
               {sorted.map((level) => (
-                <LevelRow key={level.id} level={level} />
+                <LevelRow key={level.id} level={level} bands={bands} />
               ))}
             </tbody>
           </table>

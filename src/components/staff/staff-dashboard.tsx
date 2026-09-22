@@ -20,8 +20,8 @@ import { formatDate, formatRequestId } from '@/lib/utils/formatting'
 import type { RequestStatus } from '@/types/database'
 import type { StaffRequestRow } from './request-card'
 
-const ACTIVE_STATUSES: RequestStatus[] = ['pending_hr', 'pending_md', 'hr_rejected', 'md_rejected']
-const RETURNED_STATUSES: RequestStatus[] = ['hr_rejected', 'md_rejected']
+const ACTIVE_STATUSES: RequestStatus[] = ['pending_hr', 'hr_returned', 'queued_for_erp', 'in_erp']
+const RETURNED_STATUSES: RequestStatus[] = ['hr_returned']
 
 function latestVersionsOnly(requests: StaffRequestRow[]): StaffRequestRow[] {
   const groups = new Map<string, StaffRequestRow[]>()
@@ -45,7 +45,7 @@ export function StaffDashboard({ requests, staffFirstName }: { requests: StaffRe
 
   const latest = useMemo(() => latestVersionsOnly(requests), [requests])
 
-  const pendingCount = latest.filter((r) => r.status === 'pending_hr' || r.status === 'pending_md').length
+  const pendingCount = latest.filter((r) => r.status === 'pending_hr' || r.status === 'queued_for_erp' || r.status === 'in_erp').length
   const approvedCount = latest.filter((r) => r.status === 'approved').length
   const returnedCount = latest.filter((r) => RETURNED_STATUSES.includes(r.status)).length
 

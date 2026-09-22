@@ -4,11 +4,11 @@
  * full categorized table lives on /hr/rates (`FlightPricePanel`, unchanged).
  */
 
-import { formatStaleness, isStale, usdToNgn } from '@/lib/utils/formatting'
+import { formatStaleness, isStale } from '@/lib/utils/formatting'
 import { Money } from '@/components/ui/money'
 import type { RateReferenceWithLevel } from '@/types/database'
 
-export function FlightPricePreview({ rates, fxRate }: { rates: RateReferenceWithLevel[]; fxRate: number | null }) {
+export function FlightPricePreview({ rates }: { rates: RateReferenceWithLevel[] }) {
   const recent = [...rates]
     .filter((r) => r.flight_estimate != null)
     .sort((a, b) => new Date(b.updated_at ?? 0).getTime() - new Date(a.updated_at ?? 0).getTime())
@@ -29,11 +29,7 @@ export function FlightPricePreview({ rates, fxRate }: { rates: RateReferenceWith
               <p className="text-xs capitalize text-gray-500">{row.level?.name ?? '—'} · {row.mode}</p>
             </div>
             <div className="text-right">
-              <Money
-                ngn={row.flight_estimate != null && fxRate ? usdToNgn(row.flight_estimate, fxRate) : null}
-                usd={row.flight_estimate}
-                align="right"
-              />
+              <Money ngn={row.flight_estimate} align="right" />
               <p className={`text-xs ${stale ? 'font-medium text-amber-600' : 'text-gray-400'}`}>
                 {formatStaleness(row.updated_at)}
               </p>

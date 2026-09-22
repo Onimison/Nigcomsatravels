@@ -2,8 +2,10 @@
 
 /**
  * Level Configuration Server Actions.
- * PRD Section 3.4 — Admin: "Edit coverage percentage and flight-class
- * mapping per level — no code deployment required."
+ * PRD Section 3.4 — Admin: designation → grade band mapping, editable
+ * without a code deployment. Mapping is exhaustive with hard failure by
+ * construction: `band_id` is NOT NULL, so a level row can't exist without
+ * one (REVISED_SCOPE.md §3).
  */
 
 import { createClient } from '@/lib/supabase/server'
@@ -15,7 +17,7 @@ import {
   type UpdateLevelInput,
 } from '@/lib/validations/level.schema'
 import type { ActionResult } from '@/types/actions'
-import type { Level } from '@/types/database'
+import type { LevelWithBand } from '@/types/database'
 
 export async function addLevel(input: CreateLevelInput): Promise<ActionResult> {
   return addAdminRow({
@@ -24,8 +26,8 @@ export async function addLevel(input: CreateLevelInput): Promise<ActionResult> {
     table: 'levels',
     toRow: (parsed) => ({
       name: parsed.name,
-      coverage_percent: parsed.coverage_percent,
-      flight_class: parsed.flight_class ?? null,
+      band_id: parsed.band_id,
+      sort_order: parsed.sort_order ?? null,
     }),
     uniqueViolationMessage: 'A level with this name already exists',
     revalidate: ['/admin'],
@@ -41,9 +43,12 @@ export async function editLevel(input: UpdateLevelInput): Promise<ActionResult> 
   })
 }
 
-export async function listLevels(): Promise<ActionResult<Level[]>> {
+export async function listLevels(): Promise<ActionResult<LevelWithBand[]>> {
   const supabase = await createClient()
-  const { data, error } = await supabase.from('levels').select('*').order('name', { ascending: true })
+  const { data, error } = await supabase
+    .from('levels')
+    .select('*, band:grade_bands(code, name, dta_per_day, local_running_per_day)')
+    .order('sort_order', { ascending: true })
 
   if (error) return { success: false, error: error.message, data: [] }
   return { success: true, data }

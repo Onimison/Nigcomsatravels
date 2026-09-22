@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation'
 import { RequestCard, type StaffRequestRow } from './request-card'
 import type { RequestStatus } from '@/types/database'
 
-const ACTIVE_STATUSES: RequestStatus[] = ['pending_hr', 'pending_md', 'hr_rejected', 'md_rejected']
+const ACTIVE_STATUSES: RequestStatus[] = ['pending_hr', 'hr_returned', 'queued_for_erp', 'in_erp']
 
 export function PendingRequestsList({ requests }: { requests: StaffRequestRow[] }) {
   const router = useRouter()
