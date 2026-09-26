@@ -34,6 +34,7 @@ function HistoryRow({ row }: { row: TravelRequestForMD }) {
         <div>
           <p className="font-medium text-gray-900">
             {row.origin} → {row.destination}
+            {row.memo_number && <span className="ml-2 text-xs font-normal text-gray-400">Memo {row.memo_number}</span>}
           </p>
           <p className="mt-0.5 text-xs text-gray-500">
             {staffName(row)} · {row.staff?.department?.name ?? 'Unassigned'}
@@ -45,11 +46,15 @@ function HistoryRow({ row }: { row: TravelRequestForMD }) {
         <div className="text-right">
           <StatusBadge status={row.status} />
           <div className="mt-1">
-            <Money
-              ngn={row.final_cost != null && row.locked_fx_rate != null ? usdToNgn(row.final_cost, row.locked_fx_rate) : null}
-              usd={row.final_cost}
-              align="right"
-            />
+            {row.memo_number ? (
+              <Money ngn={row.total_ngn} align="right" />
+            ) : (
+              <Money
+                ngn={row.final_cost != null && row.locked_fx_rate != null ? usdToNgn(row.final_cost, row.locked_fx_rate) : null}
+                usd={row.final_cost}
+                align="right"
+              />
+            )}
           </div>
         </div>
       </div>

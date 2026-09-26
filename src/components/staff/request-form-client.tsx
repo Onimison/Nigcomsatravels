@@ -3,21 +3,28 @@
 /**
  * Thin client wrapper around TravelRequestForm for the standalone
  * /staff/request page — "cancel resubmit" navigates back to a blank form
- * instead of toggling local parent state (UI_UX_DESIGN_PLAN.md §3.2).
+ * instead of toggling local parent state.
  */
 
 import { useRouter } from 'next/navigation'
 import { TravelRequestForm, type ResubmitTarget } from './travel-request-form'
-import type { AirportOption } from '@/types/database'
+import type { PolicyDefaults } from '@/lib/utils/policy-calculator'
+import type { AirportOption, GradeBand, GradeBandCode, StaffDirectoryEntry } from '@/types/database'
 
 export function RequestFormClient({
   airports,
+  gradeBands,
+  policyDefaults,
+  staffDirectory,
+  currentUser,
   resubmitTarget,
-  fxRate,
 }: {
   airports: AirportOption[]
+  gradeBands: GradeBand[]
+  policyDefaults: PolicyDefaults
+  staffDirectory: StaffDirectoryEntry[]
+  currentUser: { id: string; name: string; designation: string | null; gradeBandCode: GradeBandCode | null }
   resubmitTarget: ResubmitTarget | null
-  fxRate: number | null
 }) {
   const router = useRouter()
 
@@ -25,8 +32,11 @@ export function RequestFormClient({
     <TravelRequestForm
       key={resubmitTarget?.id ?? 'new'}
       airports={airports}
+      gradeBands={gradeBands}
+      policyDefaults={policyDefaults}
+      staffDirectory={staffDirectory}
+      currentUser={currentUser}
       resubmitTarget={resubmitTarget}
-      fxRate={fxRate}
       onCancelResubmit={() => router.push('/staff/request')}
     />
   )

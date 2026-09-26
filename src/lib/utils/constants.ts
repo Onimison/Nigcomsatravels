@@ -12,6 +12,21 @@ import type { RequestStatus, ApprovalStatus, UserRole } from '@/types/database'
 /** Key used in the app_settings table for the daily USD→NGN FX rate. */
 export const FX_RATE_SETTING_KEY = 'fx_rate_usd_ngn'
 
+/**
+ * app_settings keys for the §8 flat policy defaults
+ * (20260926000000_staff_phase0_policy.sql) — HR-overridable per traveller,
+ * but these are the values a fresh request starts from.
+ */
+export const POLICY_SETTING_KEYS = {
+  transportAirEachWay: 'policy_transport_air_each_way',
+  transportRoadEachWay: 'policy_transport_road_each_way',
+  airportTaxiPerLeg: 'policy_airport_taxi_per_leg',
+  fullCoverageCities: 'policy_full_coverage_cities',
+} as const
+
+/** FR-6: origin is restricted to these four cities — the destination list stays the full airports table. */
+export const DUTY_STATIONS = ['Abuja', 'Lagos', 'Kaduna', 'Gombe'] as const
+
 export const REQUEST_STATUS_LABELS: Record<RequestStatus, string> = {
   pending_hr: 'Awaiting HR Review',
   pending_md: 'Awaiting MD Approval',

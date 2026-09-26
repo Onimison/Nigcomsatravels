@@ -129,7 +129,9 @@ export function StaffDashboard({ requests, staffFirstName }: { requests: StaffRe
                     <td className="whitespace-nowrap py-3 pr-4 text-sm text-gray-500">{formatRequestId(row)}</td>
                     <td className="py-3 pr-4">
                       <p className="font-medium text-gray-900 dark:text-gray-50">{row.destination}</p>
-                      <p className="text-xs text-gray-500">{row.reason_for_travel?.slice(0, 40) || '—'}</p>
+                      <p className="text-xs text-gray-500">
+                        {row.memo_number ? `Memo ${row.memo_number}` : row.reason_for_travel?.slice(0, 40) || '—'}
+                      </p>
                     </td>
                     <td className="whitespace-nowrap py-3 pr-4 text-sm text-gray-700 dark:text-gray-300">
                       {formatDate(row.depart_date)}

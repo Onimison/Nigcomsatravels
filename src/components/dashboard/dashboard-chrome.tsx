@@ -44,13 +44,13 @@ export function DashboardChrome({
       <RouteProgress />
 
       {/* Desktop sidebar */}
-      <aside className="hidden w-64 flex-shrink-0 border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 lg:block">
+      <aside className="no-print hidden w-64 flex-shrink-0 border-r border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 lg:block">
         <Sidebar {...sidebarProps} />
       </aside>
 
       {/* Mobile drawer */}
       {mobileOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden">
+        <div className="no-print fixed inset-0 z-40 lg:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} />
           <div className="absolute inset-y-0 left-0 w-72 bg-white shadow-xl dark:bg-gray-900">
             <button
@@ -67,7 +67,9 @@ export function DashboardChrome({
       )}
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Topbar title={title} staffName={staffName} role={role} onMenuClick={() => setMobileOpen(true)} />
+        <div className="no-print">
+          <Topbar title={title} staffName={staffName} role={role} onMenuClick={() => setMobileOpen(true)} />
+        </div>
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
       </div>
     </div>

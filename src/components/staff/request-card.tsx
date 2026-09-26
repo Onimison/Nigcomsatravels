@@ -5,6 +5,7 @@
  */
 
 import { StatusBadge } from '@/components/ui/status-badge'
+import { Money } from '@/components/ui/money'
 import { formatDate } from '@/lib/utils/formatting'
 import type { RequestStatus, TravelRequest } from '@/types/database'
 
@@ -15,7 +16,20 @@ interface ApprovalInfo {
   timestamp: string
 }
 
-export type StaffRequestRow = TravelRequest & { approvals: ApprovalInfo[] | null }
+/** Traveller row shape as embedded by getMyRequests() — enough for a count + unmapped flag, not the full breakdown. */
+interface TravelerSummary {
+  staff_id: string
+  is_requester: boolean
+  designation_name: string
+  is_unmapped: boolean
+  traveller_total: number | null
+}
+
+export type StaffRequestRow = TravelRequest & {
+  approvals: ApprovalInfo[] | null
+  /** Null on pre-Phase-0 rows (queried before this column existed on the join). Empty array for a Phase-0 row somehow missing its own requester row. */
+  request_travelers: TravelerSummary[] | null
+}
 
 export const RESUBMITTABLE_STATUSES: RequestStatus[] = ['hr_rejected', 'md_rejected']
 
@@ -38,7 +52,9 @@ export function RequestCard({
   versionLabel?: string
 }) {
   const reason = latestReason(row)
-  const canResubmit = RESUBMITTABLE_STATUSES.includes(row.status)
+  const canResubmit = RESUBMITTABLE_STATUSES.includes(row.status) && Boolean(row.memo_number)
+  const travelerCount = row.request_travelers?.length ?? 0
+  const hasUnmapped = row.request_travelers?.some((t) => t.is_unmapped) ?? false
 
   return (
     <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
@@ -52,9 +68,21 @@ export function RequestCard({
           </p>
           <p className="mt-0.5 text-xs text-gray-500">
             {formatDate(row.depart_date)} – {formatDate(row.return_date)} · {row.mode}
+            {row.memo_number && <> · Memo {row.memo_number}</>}
+            {travelerCount > 1 && <> · {travelerCount} travellers</>}
           </p>
         </div>
-        <StatusBadge status={row.status} />
+        <div className="flex flex-col items-end gap-1.5">
+          <StatusBadge status={row.status} />
+          {row.memo_number && (
+            <Money
+              ngn={row.total_ngn}
+              size="sm"
+              layout="inline"
+              emptyLabel={hasUnmapped ? 'Pending HR pricing' : '—'}
+            />
+          )}
+        </div>
       </div>
 
       {reason && (row.status === 'hr_rejected' || row.status === 'md_rejected' || row.status === 'rejected_final') && (

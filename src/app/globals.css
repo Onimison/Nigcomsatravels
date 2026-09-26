@@ -93,3 +93,16 @@ body {
     width: 80%;
   }
 }
+
+/* FR-19: HR's printable memo breakdown — the primary route into the ERP
+   until Phase 4's write integration exists, so the sidebar/topbar chrome
+   and any non-printable UI (buttons, inputs) must not show up on paper. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  main {
+    overflow: visible !important;
+    height: auto !important;
+  }
+}
