@@ -66,6 +66,8 @@ export interface Staff {
   role: UserRole
   department_id: string | null
   level_id: string | null
+  /** Nullable until Admin maps this person (FR-13) — the new-scope calculator hard-refuses rather than guessing a band. */
+  designation_id: string | null
   active: boolean
   created_at: string
 }
@@ -155,6 +157,75 @@ export interface TravelRequest {
   return_date: string
   created_at: string
   updated_at: string
+  /** PRD §6 step 1 — the ERP memo number the HOD already approved. Null on pre-Phase-0 rows. */
+  memo_number: string | null
+  trip_type: TripType | null
+  /** Flat defaults + coverage tier actually used at submission (FR-14). Null on pre-Phase-0 rows. */
+  policy_snapshot: PolicySnapshot | null
+  /** Sum of request_travelers.traveller_total. Null if any traveller is unmapped (FR-13) — HR must complete those manually. */
+  total_ngn: number | null
+}
+
+/** PRD §8: an Abuja-based traveller going to Kano is one-way for transport/taxi only — DTA/local running are never halved (confirmed, §1). */
+export type TripType = 'one_way' | 'return'
+
+export interface PolicySnapshot {
+  transport_air_each_way: number
+  transport_road_each_way: number
+  airport_taxi_per_leg: number
+  full_coverage_cities: string[]
+  coverage_percent: 100 | 75
+}
+
+/** PRD §8 — the 4 rate groups the 14 designations map onto (20260926000000_staff_phase0_policy.sql). */
+export type GradeBandCode = 'B1' | 'B2' | 'B3' | 'B4'
+
+export interface GradeBand {
+  id: string
+  code: GradeBandCode
+  label: string
+  dta_per_day_100: number
+  dta_per_day_75: number
+  local_running_per_day_100: number
+  local_running_per_day_75: number
+}
+
+/** PRD §8 — confirmed exhaustive: exactly 14, mapped onto a grade_bands row. */
+export interface Designation {
+  id: string
+  name: string
+  grade_band_id: string
+}
+
+/**
+ * One person on a memo, including the requester (`is_requester = true`).
+ * PRD FR-5/FR-14/FR-17: designation and band rates are snapshotted at
+ * add-time so a later Admin remap never rewrites a figure already shown or
+ * queued; `is_unmapped` is FR-13's hard refusal, never a defaulted zero.
+ */
+export interface RequestTraveler {
+  id: string
+  request_id: string
+  staff_id: string
+  is_requester: boolean
+  designation_name: string
+  grade_band_code: GradeBandCode | null
+  is_unmapped: boolean
+  dta_rate_used: number | null
+  local_running_rate_used: number | null
+  dta_amount: number | null
+  local_running_amount: number | null
+  transport_amount: number
+  airport_taxi_amount: number
+  transport_override: number | null
+  airport_taxi_override: number | null
+  traveller_total: number | null
+  created_at: string
+}
+
+/** A `request_travelers` row enriched with the traveller's display name — what the staff-side UI actually renders. */
+export interface RequestTravelerWithName extends RequestTraveler {
+  staff: Pick<Staff, 'first_name' | 'surname'> | null
 }
 
 export interface Approval {
@@ -222,6 +293,8 @@ export interface TravelRequestForMD extends TravelRequest {
     level: Pick<Level, 'name' | 'coverage_percent'> | null
   }) | null
   approvals: ApprovalTrailEntry[] | null
+  /** Null on pre-Phase-0 rows. Populated for a memo_number row (20260926000000_staff_phase0_policy.sql). */
+  request_travelers: RequestTravelerWithName[] | null
 }
 
 /**
@@ -244,6 +317,8 @@ export interface TravelRequestForHR extends TravelRequest {
   overlaps: Pick<TravelRequest, 'id' | 'destination' | 'depart_date' | 'return_date'>[]
   /** Latest HR/MD rejection reason from the request this one supersedes, if it's a resubmission. */
   previousRejectionReason: string | null
+  /** Null on pre-Phase-0 rows. Populated for a memo_number row — this is what ReviewCardV2 renders instead of the legacy allowance form. */
+  request_travelers: RequestTravelerWithName[] | null
 }
 
 /** Result of `getRateSuggestionForRequest()` — mirrors the 4 promotable allowance fields (PRD 3.4). */
@@ -265,4 +340,18 @@ export interface RateOverrideWithStaff extends RateOverride {
 /** Rate reference with the level's name resolved (Admin Master Rate Table) */
 export interface RateReferenceWithLevel extends RateReference {
   level: Pick<Level, 'name'> | null
+}
+
+/**
+ * One row in the "add a colleague" traveller picker (FR-5). `designation`
+ * is null when Admin hasn't mapped this person yet — the picker still lets
+ * them be added (a trip isn't blocked on Admin data entry), it's the
+ * calculator that then refuses to price that traveller (FR-13).
+ */
+export interface StaffDirectoryEntry {
+  id: string
+  first_name: string | null
+  surname: string | null
+  designation: string | null
+  grade_band_code: GradeBandCode | null
 }

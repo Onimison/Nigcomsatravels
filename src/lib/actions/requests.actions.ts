@@ -22,6 +22,7 @@ import {
 } from '@/lib/validations/request.schema'
 import { calculateFinalCost, calculateTotalRawAllowance, datesOverlap } from '@/lib/utils/formatting'
 import { FX_RATE_SETTING_KEY } from '@/lib/utils/constants'
+import { resolveEndpoint, type SupabaseClient } from '@/lib/utils/resolve-endpoint'
 import { revalidatePath } from 'next/cache'
 import type { TravelMode, TravelRequestForHR, RateSuggestionResult } from '@/types/database'
 
@@ -35,52 +36,8 @@ export interface ActionResult {
 }
 
 // ============================================================
-// Trip endpoint resolution
+// Trip endpoint resolution — see lib/utils/resolve-endpoint.ts
 // ============================================================
-
-type SupabaseClient = Awaited<ReturnType<typeof createClient>>
-
-/**
- * Turns one end of a trip into a (canonical text, airport FK) pair.
- *
- * The airport id is re-read server-side rather than trusted alongside the
- * client's text, so a tampered or stale form can't file a request whose
- * `destination` says one city and whose `destination_airport_id` points at
- * another — the text always comes from the row the FK names.
- *
- * Falls back to an exact case-insensitive match on the typed text, which is
- * what lets a request submitted through the "Other — not listed" escape
- * hatch still pick up a route key when the city does happen to be seeded.
- * A miss is not an error: the FK stays null and downstream degrades.
- */
-async function resolveEndpoint(
-  supabase: SupabaseClient,
-  airportId: string | null | undefined,
-  text: string
-): Promise<{ text: string; airportId: string | null }> {
-  if (airportId) {
-    const { data } = await supabase
-      .from('airports')
-      .select('id, city')
-      .eq('id', airportId)
-      .maybeSingle()
-    if (data) return { text: data.city, airportId: data.id }
-  }
-
-  const trimmed = text.trim()
-  if (trimmed) {
-    // No wildcards — ilike here is an exact match that ignores case.
-    const { data } = await supabase
-      .from('airports')
-      .select('id, city')
-      .ilike('city', trimmed)
-      .limit(1)
-      .maybeSingle()
-    if (data) return { text: data.city, airportId: data.id }
-  }
-
-  return { text: trimmed, airportId: null }
-}
 
 /**
  * Expands validated form input into the columns `travel_requests` actually
@@ -198,7 +155,9 @@ export async function resubmitRequest(
 /**
  * Fetch the current user's travel requests, including each request's
  * approval history (used to surface the HR/MD rejection reason so staff
- * know what to fix before resubmitting).
+ * know what to fix before resubmitting) and, for Phase 0 rows, the
+ * traveller breakdown (`request_travelers` is null on pre-Phase-0 rows,
+ * which only ever have the requester and no such rows).
  * PRD Section 3.1: Pending Requests list + Travel History.
  */
 export async function getMyRequests() {
@@ -209,7 +168,10 @@ export async function getMyRequests() {
 
   const { data, error } = await supabase
     .from('travel_requests')
-    .select('*, approvals(status, reason, is_final, timestamp)')
+    .select(
+      `*, approvals(status, reason, is_final, timestamp),
+       request_travelers(staff_id, is_requester, designation_name, is_unmapped, traveller_total)`
+    )
     .eq('staff_id', user.id)
     .order('created_at', { ascending: false })
 
@@ -278,13 +240,22 @@ export async function getRequestEstimate(destination: string, mode: TravelMode) 
  * `getHRHistory()` below — HR is allowed to see the same columns per the
  * `HR read all requests` RLS policy.
  */
+const REQUEST_TRAVELERS_SELECT = `request_travelers(
+    id, staff_id, is_requester, designation_name, grade_band_code, is_unmapped,
+    dta_rate_used, local_running_rate_used, dta_amount, local_running_amount,
+    transport_amount, airport_taxi_amount, transport_override, airport_taxi_override,
+    traveller_total, created_at,
+    staff:staff(first_name, surname)
+  )`
+
 const MD_REQUEST_SELECT = `*,
   staff:staff(
     first_name, surname, email,
     department:departments(name),
     level:levels(name, coverage_percent)
   ),
-  approvals(status, reason, is_final, timestamp)`
+  approvals(status, reason, is_final, timestamp),
+  ${REQUEST_TRAVELERS_SELECT}`
 
 /**
  * Fields selected for the HR queue: staff identity + department + level
@@ -301,7 +272,8 @@ const HR_REQUEST_SELECT = `*,
     level:levels(id, name, coverage_percent, flight_class)
   ),
   origin_airport:airports!travel_requests_origin_airport_fkey(iata_code, city),
-  destination_airport:airports!travel_requests_destination_airport_fkey(iata_code, city)`
+  destination_airport:airports!travel_requests_destination_airport_fkey(iata_code, city),
+  ${REQUEST_TRAVELERS_SELECT}`
 
 /**
  * Get all requests pending HR review, enriched with two things the review
