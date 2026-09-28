@@ -30,6 +30,8 @@ export const createStaffSchema = z.object({
 export const updateStaffSchema = createStaffSchema.partial().extend({
   id: z.string().uuid(),
   active: z.boolean().optional(),
+  /** Nullable to support clearing a mis-assigned designation (FR-13/FR-24). */
+  designation_id: z.string().uuid().nullable().optional(),
 })
 
 /** Schema for deactivating a staff member */

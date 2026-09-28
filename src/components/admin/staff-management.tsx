@@ -15,11 +15,13 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { addStaff, deactivateStaff } from '@/lib/actions/staff.actions'
+import { addStaff, deactivateStaff, editStaff } from '@/lib/actions/staff.actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
-import type { Department, Level, StaffWithDetails, UserRole } from '@/types/database'
+import type { Department, Designation, GradeBand, Level, StaffWithDetails, UserRole } from '@/types/database'
+
+type DesignationWithBand = Designation & { grade_band: Pick<GradeBand, 'code' | 'label'> | null }
 
 const ROLE_OPTIONS: { label: string; value: UserRole }[] = [
   { label: 'Staff', value: 'staff' },
@@ -162,9 +164,12 @@ function AddStaffForm({
   )
 }
 
-function StaffRow({ row }: { row: StaffWithDetails }) {
+function StaffRow({ row, designations }: { row: StaffWithDetails; designations: DesignationWithBand[] }) {
   const router = useRouter()
   const [isDeactivating, setIsDeactivating] = useState(false)
+  const [editingDesignation, setEditingDesignation] = useState(false)
+  const [designationId, setDesignationId] = useState(designations.find((d) => d.name === row.designation?.name)?.id ?? '')
+  const [isSavingDesignation, setIsSavingDesignation] = useState(false)
 
   async function handleDeactivate() {
     if (!window.confirm(`Deactivate ${staffName(row)}? They will no longer be able to log in.`)) return
@@ -178,6 +183,19 @@ function StaffRow({ row }: { row: StaffWithDetails }) {
       return
     }
 
+    router.refresh()
+  }
+
+  async function handleSaveDesignation() {
+    setIsSavingDesignation(true)
+    const result = await editStaff({ id: row.id, designation_id: designationId || null })
+    setIsSavingDesignation(false)
+
+    if (!result.success) {
+      window.alert(result.error ?? 'Could not save designation.')
+      return
+    }
+    setEditingDesignation(false)
     router.refresh()
   }
 
@@ -195,6 +213,34 @@ function StaffRow({ row }: { row: StaffWithDetails }) {
       </td>
       <td className="whitespace-nowrap py-3 pr-4 text-sm text-gray-700">
         {row.level?.name ?? '—'}
+      </td>
+      <td className="whitespace-nowrap py-3 pr-4">
+        {editingDesignation ? (
+          <div className="flex items-center gap-1.5">
+            <div className="w-40">
+              <Select value={designationId} onChange={(e) => setDesignationId(e.target.value)} className="px-2 py-1">
+                <option value="">Unmapped</option>
+                {designations.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </Select>
+            </div>
+            <Button className="px-2 py-1.5" onClick={handleSaveDesignation} disabled={isSavingDesignation}>
+              {isSavingDesignation ? '…' : 'Save'}
+            </Button>
+            <Button variant="secondary" className="px-2 py-1.5" onClick={() => setEditingDesignation(false)} disabled={isSavingDesignation}>
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setEditingDesignation(true)}
+            className="text-sm text-gray-700 hover:underline"
+          >
+            {row.designation?.name ?? <span className="text-amber-600">Unmapped</span>}
+          </button>
+        )}
       </td>
       <td className="whitespace-nowrap py-3 pr-4">
         <span
@@ -222,10 +268,12 @@ export function StaffManagement({
   staff,
   departments,
   levels,
+  designations,
 }: {
   staff: StaffWithDetails[]
   departments: Department[]
   levels: Level[]
+  designations: DesignationWithBand[]
 }) {
   const [showAddForm, setShowAddForm] = useState(false)
   const canAdd = departments.length > 0 && levels.length > 0
@@ -260,13 +308,14 @@ export function StaffManagement({
                 <th className="py-2 pr-4">Role</th>
                 <th className="py-2 pr-4">Department</th>
                 <th className="py-2 pr-4">Level</th>
+                <th className="py-2 pr-4">Designation</th>
                 <th className="py-2 pr-4">Status</th>
                 <th className="py-2" />
               </tr>
             </thead>
             <tbody>
               {staff.map((row) => (
-                <StaffRow key={row.id} row={row} />
+                <StaffRow key={row.id} row={row} designations={designations} />
               ))}
             </tbody>
           </table>

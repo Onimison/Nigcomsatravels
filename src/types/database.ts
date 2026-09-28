@@ -269,6 +269,7 @@ export type ApprovalInsert = Omit<Approval, 'id' | 'timestamp'>
 export interface StaffWithDetails extends Staff {
   department: Department | null
   level: Level | null
+  designation: (Pick<Designation, 'name'> & { grade_band: Pick<GradeBand, 'code'> | null }) | null
 }
 
 /** Travel request with staff info for HR/MD review screens */

@@ -6,9 +6,11 @@ import { listStaff } from '@/lib/actions/staff.actions'
 import { listDepartments } from '@/lib/actions/departments.actions'
 import { listLevels } from '@/lib/actions/levels.actions'
 import { listRateReferences, getFxRateOverride } from '@/lib/actions/rates.actions'
+import { listGradeBands, listDesignations, getPolicyDefaults } from '@/lib/actions/policy.actions'
 import { StaffManagement } from '@/components/admin/staff-management'
 import { LevelManagement } from '@/components/admin/level-management'
 import { RateManagement } from '@/components/admin/rate-management'
+import { TravelPolicyManagement } from '@/components/admin/travel-policy-management'
 import { PageHeader } from '@/components/ui/page-header'
 import { AdminTabs } from '@/components/admin/admin-tabs'
 import type { Department, Level, RateReferenceWithLevel, StaffWithDetails } from '@/types/database'
@@ -38,13 +40,17 @@ export default async function AdminDashboardPage() {
     redirect('/')
   }
 
-  const [staffResult, departmentsResult, levelsResult, ratesResult, fxRateResult] = await Promise.all([
-    listStaff(),
-    listDepartments(),
-    listLevels(),
-    listRateReferences(),
-    getFxRateOverride(),
-  ])
+  const [staffResult, departmentsResult, levelsResult, ratesResult, fxRateResult, gradeBandsResult, designationsResult, policyDefaultsResult] =
+    await Promise.all([
+      listStaff(),
+      listDepartments(),
+      listLevels(),
+      listRateReferences(),
+      getFxRateOverride(),
+      listGradeBands(),
+      listDesignations(),
+      getPolicyDefaults(),
+    ])
 
   const fxRate = fxRateResult.success && fxRateResult.data ? Number(fxRateResult.data.value) : null
 
@@ -79,6 +85,7 @@ export default async function AdminDashboardPage() {
                   staff={(staffResult.data ?? []) as StaffWithDetails[]}
                   departments={(departmentsResult.data ?? []) as Department[]}
                   levels={(levelsResult.data ?? []) as Level[]}
+                  designations={designationsResult.data}
                 />
               ),
             },
@@ -86,6 +93,17 @@ export default async function AdminDashboardPage() {
               key: 'levels',
               label: 'Levels',
               content: <LevelManagement levels={(levelsResult.data ?? []) as Level[]} />,
+            },
+            {
+              key: 'policy',
+              label: 'Travel Policy',
+              content: (
+                <TravelPolicyManagement
+                  gradeBands={gradeBandsResult.data}
+                  designations={designationsResult.data}
+                  policyDefaults={policyDefaultsResult.data}
+                />
+              ),
             },
             {
               key: 'rates',
