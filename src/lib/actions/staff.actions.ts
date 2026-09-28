@@ -164,7 +164,7 @@ export async function listStaff() {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('staff')
-    .select('*, department:departments(*), level:levels(*)')
+    .select('*, department:departments(*), level:levels(*), designation:designations(name, grade_band:grade_bands(code))')
     .order('created_at', { ascending: false })
 
   if (error) {

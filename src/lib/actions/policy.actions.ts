@@ -11,9 +11,24 @@
  */
 
 import { createClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/utils/auth-guard'
+import { revalidatePath } from 'next/cache'
 import { POLICY_SETTING_KEYS } from '@/lib/utils/constants'
 import type { PolicyDefaults } from '@/lib/utils/policy-calculator'
-import type { GradeBand, StaffDirectoryEntry } from '@/types/database'
+import {
+  updateGradeBandSchema,
+  updateDesignationBandSchema,
+  updatePolicyDefaultsSchema,
+  type UpdateGradeBandInput,
+  type UpdateDesignationBandInput,
+  type UpdatePolicyDefaultsInput,
+} from '@/lib/validations/policy-admin.schema'
+import type { Designation, GradeBand, StaffDirectoryEntry } from '@/types/database'
+
+export interface ActionResult {
+  success: boolean
+  error?: string
+}
 
 export async function listGradeBands(): Promise<{ success: boolean; error?: string; data: GradeBand[] }> {
   const supabase = await createClient()
@@ -140,4 +155,96 @@ export async function getMyGradeBand(): Promise<{
     success: true,
     data: { designation: designation?.name ?? null, gradeBand: gradeBand ?? null },
   }
+}
+
+// ============================================================
+// Admin: grade bands, designation mapping, policy defaults (FR-23/FR-24)
+// ============================================================
+
+/** All 14 designations with their current band — the mapping table Admin edits (FR-24), and the dropdown staff-management.tsx uses to assign a person's designation. */
+export async function listDesignations(): Promise<{
+  success: boolean
+  error?: string
+  data: (Designation & { grade_band: Pick<GradeBand, 'code' | 'label'> | null })[]
+}> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('designations')
+    .select('*, grade_band:grade_bands(code, label)')
+    .order('name', { ascending: true })
+
+  if (error) return { success: false, error: error.message, data: [] }
+
+  const rows = (data ?? []).map((row) => ({
+    ...row,
+    grade_band: Array.isArray(row.grade_band) ? row.grade_band[0] : row.grade_band,
+  }))
+
+  return { success: true, data: rows as (Designation & { grade_band: Pick<GradeBand, 'code' | 'label'> | null })[] }
+}
+
+/** FR-23: grade-band DTA/local-running rates — no deployment required. */
+export async function updateGradeBand(input: UpdateGradeBandInput): Promise<ActionResult> {
+  const auth = await requireAdmin()
+  if (!auth.authorized) return { success: false, error: auth.error }
+
+  const parsed = updateGradeBandSchema.safeParse(input)
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+
+  const { id, ...fields } = parsed.data
+  const supabase = await createClient()
+  const { error } = await supabase.from('grade_bands').update(fields).eq('id', id)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/admin')
+  return { success: true }
+}
+
+/** FR-24: which designation maps to which band. The 14 designations themselves are confirmed exhaustive and not editable here. */
+export async function updateDesignationBand(input: UpdateDesignationBandInput): Promise<ActionResult> {
+  const auth = await requireAdmin()
+  if (!auth.authorized) return { success: false, error: auth.error }
+
+  const parsed = updateDesignationBandSchema.safeParse(input)
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('designations')
+    .update({ grade_band_id: parsed.data.grade_band_id })
+    .eq('id', parsed.data.id)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/admin')
+  return { success: true }
+}
+
+/** FR-23: the three flat policy defaults + the 100%-coverage city list, stored in app_settings alongside the FX rate. */
+export async function updatePolicyDefaults(input: UpdatePolicyDefaultsInput): Promise<ActionResult> {
+  const auth = await requireAdmin()
+  if (!auth.authorized) return { success: false, error: auth.error }
+
+  const parsed = updatePolicyDefaultsSchema.safeParse(input)
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' }
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const rows = [
+    { key: POLICY_SETTING_KEYS.transportAirEachWay, value: String(parsed.data.transport_air_each_way) },
+    { key: POLICY_SETTING_KEYS.transportRoadEachWay, value: String(parsed.data.transport_road_each_way) },
+    { key: POLICY_SETTING_KEYS.airportTaxiPerLeg, value: String(parsed.data.airport_taxi_per_leg) },
+    { key: POLICY_SETTING_KEYS.fullCoverageCities, value: parsed.data.full_coverage_cities.join(',') },
+  ].map((row) => ({ ...row, updated_by: user?.id ?? null, updated_at: new Date().toISOString() }))
+
+  const { error } = await supabase.from('app_settings').upsert(rows)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/admin')
+  return { success: true }
 }

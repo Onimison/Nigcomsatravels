@@ -52,5 +52,6 @@ export const NAV_ITEMS: Record<UserRole, NavItem[]> = {
     { href: '/admin?tab=staff', label: 'Staff Management', icon: <UsersIcon /> },
     { href: '/admin?tab=levels', label: 'Levels', icon: <TagIcon /> },
     { href: '/admin?tab=rates', label: 'Rates', icon: <CashIcon /> },
+    { href: '/admin?tab=policy', label: 'Travel Policy', icon: <CashIcon /> },
   ],
 }

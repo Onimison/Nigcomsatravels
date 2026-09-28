@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button'
 import { CashIcon } from '@/components/ui/icons'
 import { Money } from '@/components/ui/money'
 import { formatDate, usdToNgn } from '@/lib/utils/formatting'
-import type { TravelRequestForMD } from '@/types/database'
+import type { RequestTravelerWithName, TravelRequestForMD } from '@/types/database'
 import { useRouter } from 'next/navigation'
 
 type SortKey = 'cost_desc' | 'earliest' | 'department'
@@ -108,6 +108,90 @@ function CostBreakdown({ row }: { row: TravelRequestForMD }) {
             <p className="text-sm font-medium text-gray-500">Pending HR calculation</p>
           )}
         </div>
+      </div>
+    </div>
+  )
+}
+
+/** FR-21: "coverage rationale" — why this trip landed at 100% or 75%, in the reader's own words rather than a bare percentage. */
+function coverageRationale(row: TravelRequestForMD): string {
+  const snapshot = row.policy_snapshot
+  if (!snapshot) return 'Coverage rationale unavailable for this request.'
+  const cities = snapshot.full_coverage_cities.join(', ')
+  return snapshot.coverage_percent === 100
+    ? `${row.destination} is a full-coverage destination (${cities}) — DTA and local running are paid at 100%.`
+    : `${row.destination} is outside the full-coverage list (${cities}) — DTA and local running are paid at the reduced 75% tier.`
+}
+
+function TravelerBreakdownReadOnly({ travelers }: { travelers: RequestTravelerWithName[] }) {
+  return (
+    <div className="space-y-2">
+      {travelers.map((t) => (
+        <div key={t.id} className="flex items-center justify-between gap-2 rounded-lg border border-gray-100 p-2.5 text-sm">
+          <div>
+            <p className="font-medium text-gray-900">
+              {t.staff ? [t.staff.first_name, t.staff.surname].filter(Boolean).join(' ') : 'Unknown staff'}
+              {t.is_requester && <span className="ml-1.5 text-xs font-normal text-gray-400">(Requester)</span>}
+            </p>
+            <p className="text-xs text-gray-500">
+              {t.is_unmapped ? 'Unmapped designation' : `${t.designation_name}${t.grade_band_code ? ` · ${t.grade_band_code}` : ''}`}
+            </p>
+          </div>
+          <Money ngn={t.traveller_total} size="sm" emptyLabel="Unpriced" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * FR-21: the MD's approve/reject action on this platform is retired for a
+ * Phase 0 request — this is read-only, always. The MD approves or rejects
+ * memo_number directly in the ERP; FR-22 (Phase 5) is what will eventually
+ * reflect that decision back here automatically.
+ */
+function PendingCardReadOnly({ row }: { row: TravelRequestForMD }) {
+  const travelers = row.request_travelers ?? []
+
+  return (
+    <div className="space-y-5 rounded-xl border border-gray-200 bg-white p-5">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="font-medium text-gray-900">
+            {row.origin} → {row.destination}
+          </p>
+          <p className="mt-0.5 text-xs text-gray-500">
+            {staffName(row)} · {departmentName(row)} · Memo {row.memo_number}
+          </p>
+          <p className="mt-0.5 text-xs text-gray-500">
+            {formatDate(row.depart_date)} – {formatDate(row.return_date)} · {row.days} day{row.days === 1 ? '' : 's'} ·{' '}
+            {row.mode} · {row.trip_type === 'one_way' ? 'One-way' : 'Return'}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-gray-500">Total Cost</p>
+          <Money ngn={row.total_ngn} size="lg" align="right" emptyLabel="Incomplete" />
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+        {coverageRationale(row)}
+      </div>
+
+      <ReasonPair row={row} />
+
+      {travelers.length > 0 && (
+        <div>
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">
+            Travellers ({travelers.length})
+          </p>
+          <TravelerBreakdownReadOnly travelers={travelers} />
+        </div>
+      )}
+
+      <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 text-xs text-gray-500">
+        Approving or rejecting this memo happens directly in the ERP — that action has been retired on this
+        platform. Once the ERP decision-polling integration ships, it will show up here automatically.
       </div>
     </div>
   )
@@ -235,6 +319,7 @@ function HistoryCard({ row }: { row: TravelRequestForMD }) {
         <div>
           <p className="font-medium text-gray-900">
             {row.origin} → {row.destination}
+            {row.memo_number && <span className="ml-2 text-xs font-normal text-gray-400">Memo {row.memo_number}</span>}
           </p>
           <p className="mt-0.5 text-xs text-gray-500">
             {staffName(row)} · {departmentName(row)}
@@ -246,11 +331,15 @@ function HistoryCard({ row }: { row: TravelRequestForMD }) {
         <div className="text-right">
           <StatusBadge status={row.status} />
           <div className="mt-1">
-            <Money
-              ngn={row.final_cost != null && row.locked_fx_rate != null ? usdToNgn(row.final_cost, row.locked_fx_rate) : null}
-              usd={row.final_cost}
-              align="right"
-            />
+            {row.memo_number ? (
+              <Money ngn={row.total_ngn} align="right" />
+            ) : (
+              <Money
+                ngn={row.final_cost != null && row.locked_fx_rate != null ? usdToNgn(row.final_cost, row.locked_fx_rate) : null}
+                usd={row.final_cost}
+                align="right"
+              />
+            )}
           </div>
         </div>
       </div>
@@ -291,7 +380,7 @@ export function MDDashboard({
     return [...filtered].sort((a, b) => {
       switch (sortKey) {
         case 'cost_desc':
-          return (b.final_cost ?? 0) - (a.final_cost ?? 0)
+          return (b.final_cost ?? b.total_ngn ?? 0) - (a.final_cost ?? a.total_ngn ?? 0)
         case 'department':
           return departmentName(a).localeCompare(departmentName(b))
         case 'earliest':
@@ -348,9 +437,13 @@ export function MDDashboard({
           </p>
         ) : (
           <div className="space-y-3">
-            {visible.map((row) => (
-              <PendingCard key={row.id} row={row} />
-            ))}
+            {visible.map((row) =>
+              row.memo_number ? (
+                <PendingCardReadOnly key={row.id} row={row} />
+              ) : (
+                <PendingCard key={row.id} row={row} />
+              )
+            )}
           </div>
         )}
       </Card>
