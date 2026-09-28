@@ -19,6 +19,7 @@ import { addStaff, deactivateStaff, editStaff } from '@/lib/actions/staff.action
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { StaffBulkImport } from '@/components/admin/staff-bulk-import'
 import type { Department, Designation, GradeBand, Level, StaffWithDetails, UserRole } from '@/types/database'
 
 type DesignationWithBand = Designation & { grade_band: Pick<GradeBand, 'code' | 'label'> | null }
@@ -275,16 +276,25 @@ export function StaffManagement({
   levels: Level[]
   designations: DesignationWithBand[]
 }) {
-  const [showAddForm, setShowAddForm] = useState(false)
+  const [openForm, setOpenForm] = useState<'add' | 'import' | null>(null)
   const canAdd = departments.length > 0 && levels.length > 0
+
+  function toggle(form: 'add' | 'import') {
+    setOpenForm((current) => (current === form ? null : form))
+  }
 
   return (
     <div>
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-gray-900">Staff Management</h2>
-        <Button onClick={() => setShowAddForm((v) => !v)} disabled={!canAdd}>
-          {showAddForm ? 'Close' : '+ Add Staff'}
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => toggle('import')} disabled={!canAdd}>
+            {openForm === 'import' ? 'Close' : 'Bulk Import'}
+          </Button>
+          <Button onClick={() => toggle('add')} disabled={!canAdd}>
+            {openForm === 'add' ? 'Close' : '+ Add Staff'}
+          </Button>
+        </div>
       </div>
 
       {!canAdd && (
@@ -293,9 +303,11 @@ export function StaffManagement({
         </p>
       )}
 
-      {showAddForm && (
-        <AddStaffForm departments={departments} levels={levels} onDone={() => setShowAddForm(false)} />
+      {openForm === 'add' && (
+        <AddStaffForm departments={departments} levels={levels} onDone={() => setOpenForm(null)} />
       )}
+
+      {openForm === 'import' && <StaffBulkImport departments={departments} levels={levels} />}
 
       {staff.length === 0 ? (
         <p className="mt-4 text-sm text-gray-500">No staff members yet.</p>
