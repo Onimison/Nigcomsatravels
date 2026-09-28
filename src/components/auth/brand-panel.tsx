@@ -19,9 +19,9 @@ export function BrandPanel() {
         <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600">
           <EyeMark className="h-5 w-5 text-white" />
         </div>
-        <div className="leading-tight">
+        <div className="font-display leading-tight">
           <p className="text-base font-bold tracking-tight text-gray-900 dark:text-gray-50">NIGCOMSAT</p>
-          <p className="text-xs font-semibold tracking-widest text-blue-600 dark:text-blue-400">TRAVELS</p>
+          <p className="text-xs font-medium tracking-widest text-blue-600 dark:text-blue-400">TRAVELS</p>
         </div>
       </div>
 

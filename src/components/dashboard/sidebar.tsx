@@ -48,9 +48,9 @@ export function Sidebar({ navItems, badgeCounts, staffName, role, signOutAction,
         <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-blue-600">
           <EyeMark className="h-4 w-4 text-white" />
         </div>
-        <div className="leading-tight">
+        <div className="font-display leading-tight">
           <p className="text-sm font-bold tracking-tight text-gray-900">NIGCOMSAT</p>
-          <p className="text-[10px] font-semibold tracking-widest text-gray-400">TRAVELS</p>
+          <p className="text-[10px] font-medium tracking-widest text-gray-400">TRAVELS</p>
         </div>
       </div>
 
