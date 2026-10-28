@@ -531,11 +531,17 @@ export async function hrReviewRequestV2(input: HRReviewV2Input): Promise<ActionR
     })
     if (finalizeError.code === '40001') return { success: false, error: 'This request is no longer awaiting HR review' }
     if (finalizeError.code === '42501') return { success: false, error: 'You are not authorized to finalize this costing' }
-    if (finalizeError.code === 'PGRST202' || finalizeError.code === '42883') {
+    if (finalizeError.code === 'PGRST202') {
       const configuredDatabase = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'unknown Supabase project'
       return {
         success: false,
-        error: `The configured database (${configuredDatabase}) does not expose the standalone HR finalization function. Confirm the migration was applied to this Supabase project, reload the PostgREST schema, and redeploy the app before retrying.`,
+        error: `The configured database (${configuredDatabase}) does not expose the standalone HR finalization function for the deployed RPC signature. Database response: ${finalizeError.message ?? 'PGRST202'}`,
+      }
+    }
+    if (finalizeError.code === '42883') {
+      return {
+        success: false,
+        error: `The database rejected an internal HR finalization function call (42883): ${finalizeError.message ?? 'function signature not found'}`,
       }
     }
     return { success: false, error: 'The HR review could not be saved. No changes were committed.' }
