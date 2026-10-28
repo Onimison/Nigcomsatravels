@@ -523,12 +523,19 @@ export async function hrReviewRequestV2(input: HRReviewV2Input): Promise<ActionR
   })
 
   if (finalizeError) {
+    console.error('HR costing finalization RPC failed', {
+      code: finalizeError.code,
+      message: finalizeError.message,
+      details: finalizeError.details,
+      hint: finalizeError.hint,
+    })
     if (finalizeError.code === '40001') return { success: false, error: 'This request is no longer awaiting HR review' }
     if (finalizeError.code === '42501') return { success: false, error: 'You are not authorized to finalize this costing' }
     if (finalizeError.code === 'PGRST202' || finalizeError.code === '42883') {
+      const configuredDatabase = process.env.NEXT_PUBLIC_SUPABASE_URL ?? 'unknown Supabase project'
       return {
         success: false,
-        error: 'The live database is missing the standalone HR finalization migration. Ask the database administrator to apply 20261026000000_standalone_costing_delivery_mode.sql, then retry.',
+        error: `The configured database (${configuredDatabase}) does not expose the standalone HR finalization function. Confirm the migration was applied to this Supabase project, reload the PostgREST schema, and redeploy the app before retrying.`,
       }
     }
     return { success: false, error: 'The HR review could not be saved. No changes were committed.' }
