@@ -21,7 +21,7 @@ import { useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { submitTravelRequestV2, resubmitTravelRequestV2 } from '@/lib/actions/travel-requests-v2.actions'
 import { useOverlapWarning } from '@/hooks/useOverlapWarning'
-import { formatDate } from '@/lib/utils/formatting'
+import { formatDate, formatNGN } from '@/lib/utils/formatting'
 import { queueToast } from '@/lib/utils/toast'
 import { DUTY_STATIONS } from '@/lib/utils/constants'
 import {
@@ -406,30 +406,62 @@ export function TravelRequestForm({
 
         <div className="space-y-2">
           {pricedTravelers.map((t) => (
-            <div key={t.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 p-3">
-              <div>
-                <p className="text-sm font-medium text-gray-900">{t.name}</p>
-                <p className="text-xs text-gray-500">
-                  {t.result?.isUnmapped ? (
-                    <span className="text-amber-600">Unmapped designation — HR will price manually</span>
-                  ) : (
-                    t.designation ?? '—'
+            <div key={t.id} className="rounded-lg border border-gray-200 p-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{t.name}</p>
+                  <p className="text-xs text-gray-500">
+                    {t.result?.isUnmapped ? (
+                      <span className="text-amber-600">Unmapped designation — HR will price manually</span>
+                    ) : (
+                      t.designation ?? '—'
+                    )}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Money ngn={t.result?.travellerTotal ?? null} size="sm" emptyLabel="Unpriced" />
+                  {t.removable && (
+                    <button
+                      type="button"
+                      onClick={() => removeTraveler(t.id)}
+                      aria-label={`Remove ${t.name}`}
+                      className="text-gray-400 hover:text-red-600"
+                    >
+                      <XIcon className="h-4 w-4" />
+                    </button>
                   )}
-                </p>
+                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <Money ngn={t.result?.travellerTotal ?? null} size="sm" emptyLabel="—" />
-                {t.removable && (
-                  <button
-                    type="button"
-                    onClick={() => removeTraveler(t.id)}
-                    aria-label={`Remove ${t.name}`}
-                    className="text-gray-400 hover:text-red-600"
-                  >
-                    <XIcon className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
+              <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-gray-600 sm:grid-cols-4">
+                <div>
+                  <dt>DTA</dt>
+                  <dd className="mt-0.5 font-medium text-gray-800">
+                    {t.result?.dtaAmount !== null && t.result?.dtaAmount !== undefined
+                      ? formatNGN(t.result.dtaAmount)
+                      : 'Pending HR'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Local running</dt>
+                  <dd className="mt-0.5 font-medium text-gray-800">
+                    {t.result?.localRunningAmount !== null && t.result?.localRunningAmount !== undefined
+                      ? formatNGN(t.result.localRunningAmount)
+                      : 'Pending HR'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Transport</dt>
+                  <dd className="mt-0.5 font-medium text-gray-800">
+                    {t.result ? formatNGN(t.result.transportAmount) : 'Pending HR'}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Airport taxi</dt>
+                  <dd className="mt-0.5 font-medium text-gray-800">
+                    {t.result ? formatNGN(t.result.airportTaxiAmount) : 'Pending HR'}
+                  </dd>
+                </div>
+              </dl>
             </div>
           ))}
         </div>
@@ -468,8 +500,11 @@ export function TravelRequestForm({
       )}
 
       <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4">
-        <span className="text-sm font-medium text-gray-700">Estimated Request Total</span>
-        <Money ngn={total} size="lg" emptyLabel={days === null ? 'Set travel dates to see a total' : '—'} />
+        <div>
+          <p className="text-sm font-medium text-gray-700">Estimated Trip Total</p>
+          <p className="mt-0.5 text-xs text-gray-500">Subject to HR verification</p>
+        </div>
+        <Money ngn={total} size="lg" emptyLabel={days === null ? 'Set travel dates to see a total' : 'Unpriced'} />
       </div>
 
       {error && (

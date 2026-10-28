@@ -63,6 +63,22 @@ function HistoryRow({ row }: { row: TravelRequestForMD }) {
           Reason: <span className="italic">“{reason}”</span>
         </p>
       )}
+      {row.erp_export_id && row.status !== 'hr_rejected' && (
+        <div className="mt-3 flex flex-wrap gap-3 text-sm">
+          <a
+            href={`/hr/costing/${row.erp_export_id}`}
+            className="font-medium text-blue-600 hover:underline"
+          >
+            View finalized costing
+          </a>
+          <a
+            href={`/api/costing/v1/exports/${row.erp_export_id}/pdf`}
+            className="font-medium text-blue-600 hover:underline"
+          >
+            Download PDF
+          </a>
+        </div>
+      )}
     </div>
   )
 }

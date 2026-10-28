@@ -37,7 +37,8 @@ const EMPTY_FORM = {
   email: '',
   role: 'staff' as UserRole,
   department_id: '',
-  level_id: '',
+  designation_id: '',
+  erp_employee_number: '',
 }
 
 function staffName(row: StaffWithDetails): string {
@@ -46,11 +47,11 @@ function staffName(row: StaffWithDetails): string {
 
 function AddStaffForm({
   departments,
-  levels,
+  designations,
   onDone,
 }: {
   departments: Department[]
-  levels: Level[]
+  designations: DesignationWithBand[]
   onDone: () => void
 }) {
   const router = useRouter()
@@ -66,8 +67,8 @@ function AddStaffForm({
     e.preventDefault()
     setError(null)
 
-    if (!form.department_id || !form.level_id) {
-      setError('Select a department and level')
+    if (!form.department_id || !form.designation_id) {
+      setError('Select a department and DTA designation')
       return
     }
 
@@ -78,7 +79,8 @@ function AddStaffForm({
       email: form.email.trim(),
       role: form.role,
       department_id: form.department_id,
-      level_id: form.level_id,
+      designation_id: form.designation_id,
+      erp_employee_number: form.erp_employee_number.trim().length > 0 ? form.erp_employee_number.trim() : undefined,
     })
     setIsSubmitting(false)
 
@@ -120,7 +122,14 @@ function AddStaffForm({
         required
       />
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <Input
+        label="Business Central Employee Number"
+        value={form.erp_employee_number}
+        onChange={(e) => update('erp_employee_number', e.target.value)}
+        placeholder="Optional until ERP mapping is available"
+      />
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Select
           label="Role"
           value={form.role}
@@ -138,13 +147,16 @@ function AddStaffForm({
           ))}
         </Select>
         <Select
-          label="Level"
-          value={form.level_id}
-          onChange={(e) => update('level_id', e.target.value)}
+          label="DTA Designation"
+          value={form.designation_id}
+          onChange={(e) => update('designation_id', e.target.value)}
+          required
         >
-          <option value="">Select level…</option>
-          {levels.map((l) => (
-            <option key={l.id} value={l.id}>{l.name}</option>
+          <option value="">Select designation…</option>
+          {designations.map((designation) => (
+            <option key={designation.id} value={designation.id}>
+              {designation.name}{designation.grade_band ? ` (${designation.grade_band.code})` : ''}
+            </option>
           ))}
         </Select>
       </div>
@@ -171,6 +183,9 @@ function StaffRow({ row, designations }: { row: StaffWithDetails; designations: 
   const [editingDesignation, setEditingDesignation] = useState(false)
   const [designationId, setDesignationId] = useState(designations.find((d) => d.name === row.designation?.name)?.id ?? '')
   const [isSavingDesignation, setIsSavingDesignation] = useState(false)
+  const [editingErpEmployeeNumber, setEditingErpEmployeeNumber] = useState(false)
+  const [erpEmployeeNumber, setErpEmployeeNumber] = useState(row.erp_employee_number === null ? '' : row.erp_employee_number)
+  const [isSavingErpEmployeeNumber, setIsSavingErpEmployeeNumber] = useState(false)
 
   async function handleDeactivate() {
     if (!window.confirm(`Deactivate ${staffName(row)}? They will no longer be able to log in.`)) return
@@ -197,6 +212,23 @@ function StaffRow({ row, designations }: { row: StaffWithDetails; designations: 
       return
     }
     setEditingDesignation(false)
+    router.refresh()
+  }
+
+  async function handleSaveErpEmployeeNumber() {
+    setIsSavingErpEmployeeNumber(true)
+    const normalized = erpEmployeeNumber.trim()
+    const result = await editStaff({
+      id: row.id,
+      erp_employee_number: normalized.length > 0 ? normalized : null,
+    })
+    setIsSavingErpEmployeeNumber(false)
+
+    if (!result.success) {
+      window.alert(result.error ?? 'Could not save Business Central employee number.')
+      return
+    }
+    setEditingErpEmployeeNumber(false)
     router.refresh()
   }
 
@@ -243,6 +275,35 @@ function StaffRow({ row, designations }: { row: StaffWithDetails; designations: 
           </button>
         )}
       </td>
+      <td className="whitespace-nowrap py-3 pr-4 text-sm text-gray-700">
+        {row.cadre ?? <span className="text-amber-600">Not provided</span>}
+      </td>
+      <td className="whitespace-nowrap py-3 pr-4">
+        {editingErpEmployeeNumber ? (
+          <div className="flex items-center gap-1.5">
+            <Input
+              value={erpEmployeeNumber}
+              onChange={(e) => setErpEmployeeNumber(e.target.value)}
+              className="w-40 px-2 py-1"
+              placeholder="Employee no."
+            />
+            <Button className="px-2 py-1.5" onClick={handleSaveErpEmployeeNumber} disabled={isSavingErpEmployeeNumber}>
+              {isSavingErpEmployeeNumber ? '…' : 'Save'}
+            </Button>
+            <Button variant="secondary" className="px-2 py-1.5" onClick={() => setEditingErpEmployeeNumber(false)} disabled={isSavingErpEmployeeNumber}>
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setEditingErpEmployeeNumber(true)}
+            className="text-sm text-gray-700 hover:underline"
+          >
+            {row.erp_employee_number ?? <span className="text-amber-600">Not mapped</span>}
+          </button>
+        )}
+      </td>
       <td className="whitespace-nowrap py-3 pr-4">
         <span
           className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
@@ -277,7 +338,7 @@ export function StaffManagement({
   designations: DesignationWithBand[]
 }) {
   const [openForm, setOpenForm] = useState<'add' | 'import' | null>(null)
-  const canAdd = departments.length > 0 && levels.length > 0
+  const canAdd = departments.length > 0 && designations.length > 0
 
   function toggle(form: 'add' | 'import') {
     setOpenForm((current) => (current === form ? null : form))
@@ -288,7 +349,7 @@ export function StaffManagement({
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-gray-900">Staff Management</h2>
         <div className="flex gap-2">
-          <Button variant="secondary" onClick={() => toggle('import')} disabled={!canAdd}>
+          <Button variant="secondary" onClick={() => toggle('import')}>
             {openForm === 'import' ? 'Close' : 'Bulk Import'}
           </Button>
           <Button onClick={() => toggle('add')} disabled={!canAdd}>
@@ -297,17 +358,21 @@ export function StaffManagement({
         </div>
       </div>
 
+      <p className="mt-2 text-sm text-gray-500">
+        New staff are assigned a NIGCOMSAT DTA designation. The legacy level is optional and is kept only for older rate-reference records.
+      </p>
+
       {!canAdd && (
         <p className="mt-2 text-sm text-amber-600">
-          Add at least one department and level before adding staff.
+          Add at least one department and DTA designation before adding staff.
         </p>
       )}
 
       {openForm === 'add' && (
-        <AddStaffForm departments={departments} levels={levels} onDone={() => setOpenForm(null)} />
+        <AddStaffForm departments={departments} designations={designations} onDone={() => setOpenForm(null)} />
       )}
 
-      {openForm === 'import' && <StaffBulkImport departments={departments} levels={levels} />}
+      {openForm === 'import' && <StaffBulkImport departments={departments} levels={levels} designations={designations} />}
 
       {staff.length === 0 ? (
         <p className="mt-4 text-sm text-gray-500">No staff members yet.</p>
@@ -319,8 +384,10 @@ export function StaffManagement({
                 <th className="py-2 pr-4">Name</th>
                 <th className="py-2 pr-4">Role</th>
                 <th className="py-2 pr-4">Department</th>
-                <th className="py-2 pr-4">Level</th>
+                <th className="py-2 pr-4">Legacy Level</th>
                 <th className="py-2 pr-4">Designation</th>
+                <th className="py-2 pr-4">Cadre</th>
+                <th className="py-2 pr-4">BC Employee No.</th>
                 <th className="py-2 pr-4">Status</th>
                 <th className="py-2" />
               </tr>

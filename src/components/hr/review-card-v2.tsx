@@ -9,7 +9,7 @@
  * Exactly three fields are editable (FR-16): days (trip-wide) and, per
  * traveller, transport + airport taxi. DTA and local running are always a
  * pure function of the frozen per-day rate × the day count shown here —
- * never a text box. An unmapped traveller blocks forwarding entirely
+ * never a text box. An unmapped traveller blocks finalization entirely
  * (FR-13); the fix is Admin mapping their designation, not a number typed
  * in here.
  */
@@ -43,7 +43,7 @@ export function ReviewCardV2({ row }: { row: TravelRequestForHR }) {
     )
   )
   const [note, setNote] = useState('')
-  const [pendingAction, setPendingAction] = useState<'forward' | 'reject' | null>(null)
+  const [pendingAction, setPendingAction] = useState<'finalize' | 'reject' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
@@ -89,14 +89,14 @@ export function ReviewCardV2({ row }: { row: TravelRequestForHR }) {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  async function handleForward() {
+  async function handleFinalize() {
     setError(null)
     if (anyUnmapped) {
       setError('One or more travellers have no mapped designation. Ask Admin to map them, then refresh this page.')
       return
     }
 
-    setPendingAction('forward')
+    setPendingAction('finalize')
     const result = await hrReviewRequestV2({
       request_id: row.id,
       days,
@@ -178,8 +178,8 @@ export function ReviewCardV2({ row }: { row: TravelRequestForHR }) {
         <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           <AlertTriangleIcon className="mt-0.5 h-4 w-4 flex-shrink-0" />
           <p>
-            One or more travellers below have no designation mapped to a rate band. This request can&apos;t be
-            forwarded until Admin maps them in Staff Management — refresh this page once that&apos;s done.
+            One or more travellers below have no designation mapped to a rate band. This costing can&apos;t be
+            finalized until Admin maps them in Staff Management — refresh this page once that&apos;s done.
           </p>
         </div>
       )}
@@ -264,10 +264,10 @@ export function ReviewCardV2({ row }: { row: TravelRequestForHR }) {
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
         <div className="no-print flex gap-2">
           <Button type="button" variant="outline" onClick={handleCopy}>
-            {copied ? 'Copied!' : 'Copy Breakdown'}
+            {copied ? 'Copied!' : 'Copy Draft Breakdown'}
           </Button>
           <Button type="button" variant="outline" onClick={() => window.print()}>
-            Print
+            Print Draft
           </Button>
         </div>
         <div className="text-right">
@@ -278,7 +278,7 @@ export function ReviewCardV2({ row }: { row: TravelRequestForHR }) {
 
       <div className="no-print space-y-2 border-t border-gray-100 pt-3">
         <label className="block text-xs font-medium text-gray-700" htmlFor={`note-${row.id}`}>
-          Note to MD (optional when forwarding, required to reject)
+          HR note (optional when finalizing, required to reject)
         </label>
         <textarea
           id={`note-${row.id}`}
@@ -293,8 +293,8 @@ export function ReviewCardV2({ row }: { row: TravelRequestForHR }) {
         )}
 
         <div className="flex flex-wrap gap-2 pt-1">
-          <Button variant="primary" disabled={pendingAction !== null || anyUnmapped} onClick={handleForward}>
-            {pendingAction === 'forward' ? 'Forwarding…' : 'Forward to MD'}
+          <Button variant="primary" disabled={pendingAction !== null || anyUnmapped} onClick={handleFinalize}>
+            {pendingAction === 'finalize' ? 'Finalizing…' : 'Finalize Costing'}
           </Button>
           <Button variant="danger" disabled={pendingAction !== null} onClick={handleReject}>
             {pendingAction === 'reject' ? 'Rejecting…' : 'Reject'}

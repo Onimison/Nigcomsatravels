@@ -31,6 +31,9 @@ export type RequestStatus =
   | 'rejected_final'
   | 'approved'
 
+/** Which system owns the final approval decision for a request. */
+export type ApprovalSource = 'local' | 'erp'
+
 /** Approval action status (PRD Section 4 — approvals table) */
 export type ApprovalStatus =
   | 'hr_approved'
@@ -63,11 +66,15 @@ export interface Staff {
   email: string
   first_name: string | null
   surname: string | null
+  /** Employment cadre from the nominal roll, separate from DTA designation. */
+  cadre: string | null
   role: UserRole
   department_id: string | null
   level_id: string | null
   /** Nullable until Admin maps this person (FR-13) — the new-scope calculator hard-refuses rather than guessing a band. */
   designation_id: string | null
+  /** Business Central employee number used to identify this person in an ERP export. */
+  erp_employee_number: string | null
   active: boolean
   created_at: string
 }
@@ -114,6 +121,7 @@ export interface RateOverride {
   field_name: string
   overridden_value: number | null
   hr_staff_id: string
+  reason: string | null
   timestamp: string
 }
 
@@ -164,6 +172,19 @@ export interface TravelRequest {
   policy_snapshot: PolicySnapshot | null
   /** Sum of request_travelers.traveller_total. Null if any traveller is unmapped (FR-13) — HR must complete those manually. */
   total_ngn: number | null
+  approval_source: ApprovalSource
+  hr_author_snapshot: HrAuthorSnapshot | null
+  costing_memo_body: string | null
+  costing_memo_template_version: string | null
+  erp_export_id: string | null
+}
+
+export interface HrAuthorSnapshot {
+  staff_id: string
+  office_email: string
+  name: string
+  organizational_title: string
+  authorized_at: string
 }
 
 /** PRD §8: an Abuja-based traveller going to Kano is one-way for transport/taxi only — DTA/local running are never halved (confirmed, §1). */
@@ -355,4 +376,93 @@ export interface StaffDirectoryEntry {
   surname: string | null
   designation: string | null
   grade_band_code: GradeBandCode | null
+}
+
+/** Immutable Business Central handoff created after HR approves a v2 request. */
+export interface ErpExport {
+  id: string
+  request_id: string
+  source_memo_number: string
+  revision: number
+  schema_version: string
+  payload: ErpExportPayload
+  payload_sha256: string
+  delivery_mode: 'manual' | 'business_central_api'
+  state: 'pending' | 'acknowledged' | 'error' | 'held'
+  last_error_code: string | null
+  last_error_message: string | null
+  available_at: string
+  acknowledged_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ErpExportTraveler {
+  employee_identifier: string | null
+  name: string
+  designation: string
+  grade_band: GradeBandCode
+  dta_rate: string
+  dta_amount: string
+  local_running_rate: string
+  local_running_amount: string
+  transport_amount: string
+  airport_taxi_amount: string
+  total_amount: string
+}
+
+export interface ErpMemoLine {
+  line_number: number
+  description: string
+  quantity: string
+  unit_price: string
+  amount: string
+}
+
+export interface ErpExportPayload {
+  schema_version: string
+  export_id: string
+  delivery_mode: 'manual' | 'business_central_api'
+  source_memo_number: string
+  costing_memo_revision: number
+  costing_memo_subject: string
+  costing_memo_body: string
+  costing_memo_body_format: 'plain_text' | 'html'
+  costing_memo_template_version: string
+  memo_type: 'Expense Claim'
+  memo_priority: 'Urgent'
+  memo_department: string | null
+  memo_addressed_to: string
+  memo_due_date: string | null
+  memo_approved_by: string | null
+  coverage_percent: 75 | 100
+  costing_memo_lines: ErpMemoLine[]
+  hr_author_name: string
+  hr_author_title: string
+  hr_author_email: string
+  hr_authorized_at: string
+  hr_note: string | null
+  trip_origin: string
+  trip_destination: string
+  departure_date: string
+  return_date: string
+  days: number
+  trip_type: TripType
+  mode: 'air' | 'road'
+  reason_for_travel: string
+  travelers: ErpExportTraveler[]
+  total_amount: string
+  currency: 'NGN'
+}
+
+/** Business Central's durable receipt for the created HR costing memo/workflow. */
+export interface ErpDeliveryReceipt {
+  id: string
+  export_id: string
+  erp_company_id: string
+  erp_costing_memo_number: string
+  erp_workflow_reference: string
+  received_payload_sha256: string
+  acknowledged_at: string
+  created_at: string
 }

@@ -1,0 +1,576 @@
+openapi: 3.1.0
+info:
+  title: NIGCOMSAT ERP Export API
+  version: 1.0.0
+  description: >-
+    Pull API for Business Central to collect immutable HR travel-costing memo
+    exports, create the costing memo and MD/CEO workflow, and acknowledge the
+    durable ERP result.
+servers:
+  - url: https://{travel_tool_host}
+    variables:
+      travel_tool_host:
+        default: travel-tool-sandbox.example.gov.ng
+security:
+  - erpBearer: []
+paths:
+  /api/erp/v1/health:
+    get:
+      operationId: getErpHealth
+      summary: Check API and database readiness
+      responses:
+        '200':
+          description: API and export queue are available
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/erp/v1/exports:
+    get:
+      operationId: listPendingExports
+      summary: Collect pending or retryable HR costing memo exports
+      parameters:
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending]
+            default: pending
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: cursor
+          in: query
+          required: false
+          description: Opaque page cursor returned by the previous response.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Immutable export queue page
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportCollection'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/erp/v1/exports/{export_id}:
+    get:
+      operationId: getExport
+      summary: Retrieve one immutable export for reconciliation
+      parameters:
+        - $ref: '#/components/parameters/ExportId'
+      responses:
+        '200':
+          description: Immutable export detail
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [item]
+                properties:
+                  item:
+                    $ref: '#/components/schemas/Export'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/erp/v1/exports/{export_id}/acknowledgements:
+    post:
+      operationId: acknowledgeExport
+      summary: Acknowledge a durable Business Central import
+      description: >-
+        Call only after Business Central has created the HR costing memo and
+        durable MD/CEO workflow link. Repeating the same acknowledgement is
+        idempotent. A different memo, workflow reference, company, source memo,
+        or hash returns a reconciliation conflict.
+      parameters:
+        - $ref: '#/components/parameters/ExportId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcknowledgementRequest'
+      responses:
+        '200':
+          description: Acknowledgement recorded or safely replayed
+          headers:
+            X-Correlation-ID:
+              $ref: '#/components/headers/CorrelationId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcknowledgementResponse'
+        '400':
+          $ref: '#/components/responses/InvalidRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          description: Request body is too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+components:
+  securitySchemes:
+    erpBearer:
+      type: http
+      scheme: bearer
+      description: Environment-specific machine credential, never a staff login.
+  parameters:
+    ExportId:
+      name: export_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  headers:
+    CorrelationId:
+      description: UUID used to trace this request across both systems.
+      schema:
+        type: string
+        format: uuid
+  responses:
+    InvalidRequest:
+      description: Request validation failed
+      headers:
+        X-Correlation-ID:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Missing or invalid machine credential
+      headers:
+        X-Correlation-ID:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Export does not exist
+      headers:
+        X-Correlation-ID:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: Acknowledgement conflicts with an existing receipt or export
+      headers:
+        X-Correlation-ID:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    RateLimited:
+      description: Rate limit exceeded
+      headers:
+        X-Correlation-ID:
+          $ref: '#/components/headers/CorrelationId'
+        Retry-After:
+          schema:
+            type: integer
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unavailable:
+      description: Temporary database or integration failure
+      headers:
+        X-Correlation-ID:
+          $ref: '#/components/headers/CorrelationId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+    HealthResponse:
+      type: object
+      required: [status, service, schema_version, checked_at]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+        service:
+          type: string
+          example: erp-export-api
+        schema_version:
+          type: string
+          example: '1.0'
+        checked_at:
+          type: string
+          format: date-time
+    ExportCollection:
+      type: object
+      required: [schema_version, items, next_cursor, has_more]
+      properties:
+        schema_version:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Export'
+        next_cursor:
+          type: [string, 'null']
+        has_more:
+          type: boolean
+    Export:
+      type: object
+      required:
+        - id
+        - request_id
+        - source_memo_number
+        - revision
+        - schema_version
+        - payload
+        - payload_sha256
+        - delivery_mode
+        - state
+        - available_at
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        request_id:
+          type: string
+          format: uuid
+        source_memo_number:
+          type: string
+        revision:
+          type: integer
+          minimum: 1
+        schema_version:
+          type: string
+        payload:
+          $ref: '#/components/schemas/ExportPayload'
+        payload_sha256:
+          type: string
+          pattern: '^[a-fA-F0-9]{64}$'
+        delivery_mode:
+          type: string
+          enum: [business_central_api]
+        state:
+          type: string
+          enum: [pending, acknowledged, error, held]
+        last_error_code:
+          type: [string, 'null']
+        last_error_message:
+          type: [string, 'null']
+        available_at:
+          type: string
+          format: date-time
+        acknowledged_at:
+          type: [string, 'null']
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ExportPayload:
+      type: object
+      required:
+        - schema_version
+        - export_id
+        - delivery_mode
+        - source_memo_number
+        - costing_memo_revision
+        - costing_memo_subject
+        - costing_memo_body
+        - costing_memo_body_format
+        - costing_memo_template_version
+        - memo_type
+        - memo_priority
+        - memo_department
+        - memo_addressed_to
+        - memo_due_date
+        - memo_approved_by
+        - coverage_percent
+        - costing_memo_lines
+        - hr_author_name
+        - hr_author_title
+        - hr_author_email
+        - hr_authorized_at
+        - trip_origin
+        - trip_destination
+        - departure_date
+        - return_date
+        - days
+        - trip_type
+        - mode
+        - reason_for_travel
+        - travelers
+        - total_amount
+        - currency
+      properties:
+        schema_version:
+          type: string
+        export_id:
+          type: string
+          format: uuid
+        delivery_mode:
+          type: string
+          enum: [business_central_api]
+        source_memo_number:
+          type: string
+        costing_memo_revision:
+          type: integer
+          minimum: 1
+        costing_memo_subject:
+          type: string
+        costing_memo_body:
+          type: string
+        costing_memo_body_format:
+          type: string
+          enum: [plain_text]
+        costing_memo_template_version:
+          type: string
+        memo_type:
+          type: string
+          enum: [Expense Claim]
+        memo_priority:
+          type: string
+          enum: [Urgent]
+        memo_department:
+          type: [string, 'null']
+        memo_addressed_to:
+          type: string
+        memo_due_date:
+          type: [string, 'null']
+          format: date
+        memo_approved_by:
+          type: [string, 'null']
+        coverage_percent:
+          type: integer
+          enum: [75, 100]
+        costing_memo_lines:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/MemoLine'
+        hr_author_name:
+          type: string
+        hr_author_title:
+          type: string
+        hr_author_email:
+          type: string
+          format: email
+        hr_authorized_at:
+          type: string
+          format: date-time
+        hr_note:
+          type: [string, 'null']
+        trip_origin:
+          type: string
+        trip_destination:
+          type: string
+        departure_date:
+          type: string
+          format: date
+        return_date:
+          type: string
+          format: date
+        days:
+          type: integer
+          minimum: 1
+        trip_type:
+          type: string
+          enum: [return, one_way]
+        mode:
+          type: string
+          enum: [air, road]
+        reason_for_travel:
+          type: string
+        travelers:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/ExportTraveler'
+        total_amount:
+          type: string
+          pattern: '^\d+\.\d{2}$'
+        currency:
+          type: string
+          enum: [NGN]
+    ExportTraveler:
+      type: object
+      required:
+        - employee_identifier
+        - name
+        - designation
+        - grade_band
+        - dta_rate
+        - dta_amount
+        - local_running_rate
+        - local_running_amount
+        - transport_amount
+        - airport_taxi_amount
+        - total_amount
+      properties:
+        employee_identifier:
+          type: string
+        name:
+          type: string
+        designation:
+          type: string
+        grade_band:
+          type: string
+        dta_rate:
+          type: string
+          pattern: '^\d+\.\d{2}$'
+        dta_amount:
+          type: string
+          pattern: '^\d+\.\d{2}$'
+        local_running_rate:
+          type: string
+          pattern: '^\d+\.\d{2}$'
+        local_running_amount:
+          type: string
+          pattern: '^\d+\.\d{2}$'
+        transport_amount:
+          type: string
+          pattern: '^\d+\.\d{2}$'
+        airport_taxi_amount:
+          type: string
+          pattern: '^\d+\.\d{2}$'
+        total_amount:
+          type: string
+          pattern: '^\d+\.\d{2}$'
+    MemoLine:
+      type: object
+      additionalProperties: false
+      required: [line_number, description, quantity, unit_price, amount]
+      properties:
+        line_number:
+          type: integer
+          minimum: 1
+        description:
+          type: string
+        quantity:
+          type: string
+          pattern: '^\d+\.\d{2}$'
+        unit_price:
+          type: string
+          pattern: '^\d+\.\d{2}$'
+        amount:
+          type: string
+          pattern: '^\d+\.\d{2}$'
+    AcknowledgementRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - export_id
+        - source_memo_number
+        - erp_company_id
+        - erp_costing_memo_number
+        - erp_workflow_reference
+        - received_payload_sha256
+      properties:
+        export_id:
+          type: string
+          format: uuid
+        source_memo_number:
+          type: string
+        erp_company_id:
+          type: string
+        erp_costing_memo_number:
+          type: string
+        erp_workflow_reference:
+          type: string
+        received_payload_sha256:
+          type: string
+          pattern: '^[a-fA-F0-9]{64}$'
+    AcknowledgementResponse:
+      type: object
+      required:
+        - export_id
+        - status
+        - erp_company_id
+        - erp_costing_memo_number
+        - erp_workflow_reference
+        - acknowledged_at
+      properties:
+        export_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [acknowledged]
+        erp_company_id:
+          type: string
+        erp_costing_memo_number:
+          type: string
+        erp_workflow_reference:
+          type: string
+        acknowledged_at:
+          type: string
+          format: date-time

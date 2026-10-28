@@ -45,7 +45,8 @@ export interface BulkAddResult {
 
 /**
  * Add a new staff member.
- * PRD Section 3.4: "Add, edit, deactivate staff (Name, Email, Role, Department, Level)."
+ * Staff registration uses the DTA designation mapping. The legacy level is
+ * optional and is retained only for older rate-reference records.
  */
 export async function addStaff(input: CreateStaffInput): Promise<ActionResult> {
   const auth = await requireAdmin()
@@ -72,9 +73,12 @@ export async function addStaff(input: CreateStaffInput): Promise<ActionResult> {
     email: parsed.data.email,
     first_name: parsed.data.first_name,
     surname: parsed.data.surname,
-    role: parsed.data.role,
+    role: parsed.data.role ?? 'staff',
+    cadre: parsed.data.cadre ?? null,
     department_id: parsed.data.department_id,
-    level_id: parsed.data.level_id,
+    designation_id: parsed.data.designation_id,
+    level_id: parsed.data.level_id ?? null,
+    erp_employee_number: parsed.data.erp_employee_number ?? null,
     active: true,
   })
 
@@ -95,8 +99,8 @@ export async function addStaff(input: CreateStaffInput): Promise<ActionResult> {
  *
  * Mirrors addStaff()'s create-user → insert-row → rollback-on-failure
  * sequence per row, but:
- *  - resolves department/level BY NAME against the DB (the CSV uses
- *    human-readable names, not UUIDs)
+ *  - resolves optional department/level and required designation BY NAME
+ *    against the DB (the CSV uses human-readable names, not UUIDs)
  *  - is idempotent by email — an email that already has a staff row gets
  *    that row corrected instead of erroring (same repair pattern as
  *    scripts/seed-superusers.mjs), so a fixed re-upload of the same file
@@ -128,9 +132,10 @@ export async function bulkAddStaff(rows: StaffCsvRow[]): Promise<BulkAddResult> 
 
   const admin = createAdminClient()
 
-  const [{ data: departments }, { data: levels }] = await Promise.all([
+  const [{ data: departments }, { data: levels }, { data: designations }] = await Promise.all([
     admin.from('departments').select('id, name'),
     admin.from('levels').select('id, name'),
+    admin.from('designations').select('id, name'),
   ])
 
   const results: BulkAddRowResult[] = []
@@ -147,34 +152,56 @@ export async function bulkAddStaff(rows: StaffCsvRow[]): Promise<BulkAddResult> 
     }
 
     const email = parsed.data.email.trim().toLowerCase()
-    const dept = departments?.find((d) => d.name.toLowerCase() === parsed.data.department.trim().toLowerCase())
-    const level = levels?.find((l) => l.name.toLowerCase() === parsed.data.level.trim().toLowerCase())
+    const dept = parsed.data.department
+      ? departments?.find((d) => d.name.toLowerCase() === parsed.data.department?.trim().toLowerCase())
+      : undefined
+    const level = parsed.data.level
+      ? levels?.find((l) => l.name.toLowerCase() === parsed.data.level?.trim().toLowerCase())
+      : undefined
 
-    if (!dept) {
+    if (parsed.data.department && !dept) {
       results.push({ email, status: 'failed', error: `Department "${parsed.data.department}" not found` })
       failed++
       continue
     }
-    if (!level) {
+    if (parsed.data.level && !level) {
       results.push({ email, status: 'failed', error: `Level "${parsed.data.level}" not found` })
+      failed++
+      continue
+    }
+
+    const designationName = parsed.data.designation ?? parsed.data.cadre
+    const designation = designationName
+      ? designations?.find((d) => d.name.toLowerCase() === designationName.trim().toLowerCase())
+      : undefined
+
+    if (!designation) {
+      results.push({ email, status: 'failed', error: `Designation "${designationName ?? '(blank)'}" not found in Designations` })
       failed++
       continue
     }
 
     const staffRow = {
       email,
-      first_name: parsed.data.first_name.trim(),
-      surname: parsed.data.surname.trim(),
-      role: parsed.data.role,
-      department_id: dept.id,
-      level_id: level.id,
+      ...(parsed.data.first_name !== undefined ? { first_name: parsed.data.first_name || null } : {}),
+      ...(parsed.data.surname !== undefined ? { surname: parsed.data.surname || null } : {}),
+      role: parsed.data.role ?? 'staff',
       active: true,
+      designation_id: designation?.id,
+      ...(parsed.data.designation !== undefined ? { cadre: parsed.data.cadre ?? null } : {}),
+      ...(dept ? { department_id: dept.id } : {}),
+      ...(level ? { level_id: level.id } : {}),
+      ...(parsed.data.erp_employee_number !== undefined
+        ? { erp_employee_number: parsed.data.erp_employee_number }
+        : {}),
     }
 
-    const { data: existing } = await admin.from('staff').select('id').eq('email', email).maybeSingle()
+    const { data: existing } = await admin.from('staff').select('id, role').eq('email', email).maybeSingle()
 
     if (existing) {
-      const { error } = await admin.from('staff').update(staffRow).eq('id', existing.id)
+      const { role: _importRole, ...repairFields } = staffRow
+      void _importRole
+      const { error } = await admin.from('staff').update(repairFields).eq('id', existing.id)
       if (error) {
         results.push({ email, status: 'failed', error: error.message })
         failed++

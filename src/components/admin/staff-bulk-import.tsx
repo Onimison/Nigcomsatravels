@@ -14,11 +14,11 @@ import { parseCsv } from '@/lib/utils/csv'
 import { staffCsvRowSchema, MAX_BULK_IMPORT_ROWS, type StaffCsvRow } from '@/lib/validations/staff.schema'
 import { bulkAddStaff, type BulkAddResult } from '@/lib/actions/staff.actions'
 import { Button } from '@/components/ui/button'
-import type { Department, Level } from '@/types/database'
+import type { Department, Designation, Level } from '@/types/database'
 
-const TEMPLATE_HEADERS = ['first_name', 'surname', 'email', 'role', 'department', 'level']
-const TEMPLATE_EXAMPLE = ['Ada', 'Okafor', 'ada.okafor@nigcomsat.gov.ng', 'staff', 'Engineering', 'Manager']
-const REQUIRED_HEADERS = TEMPLATE_HEADERS
+const TEMPLATE_HEADERS = ['first_name', 'surname', 'email', 'role', 'department', 'level', 'cadre', 'designation', 'erp_employee_number']
+const TEMPLATE_EXAMPLE = ['Ada', 'Okafor', 'ada.okafor@nigcomsat.gov.ng', 'staff', 'Engineering', 'Manager', 'Engineering', 'Manager', 'BC-001']
+const REQUIRED_HEADERS = ['email', 'designation']
 
 interface PreviewRow {
   email: string
@@ -37,7 +37,12 @@ function downloadTemplate() {
   URL.revokeObjectURL(url)
 }
 
-function buildPreview(rows: string[][], departments: Department[], levels: Level[]): { header: string[]; preview: PreviewRow[] } {
+function buildPreview(
+  rows: string[][],
+  departments: Department[],
+  levels: Level[],
+  designations: Designation[],
+): { header: string[]; preview: PreviewRow[] } {
   if (rows.length === 0) return { header: [], preview: [] }
 
   const [headerRow, ...dataRows] = rows
@@ -56,12 +61,15 @@ function buildPreview(rows: string[][], departments: Department[], levels: Level
     })
 
     const candidate = {
-      first_name: raw.first_name ?? '',
-      surname: raw.surname ?? '',
+      first_name: raw.first_name && raw.first_name.length > 0 ? raw.first_name : undefined,
+      surname: raw.surname && raw.surname.length > 0 ? raw.surname : undefined,
       email: raw.email ?? '',
-      role: (raw.role ?? '').toLowerCase(),
-      department: raw.department ?? '',
-      level: raw.level ?? '',
+      role: raw.role && raw.role.length > 0 ? raw.role.toLowerCase() : undefined,
+      department: raw.department && raw.department.length > 0 ? raw.department : undefined,
+      level: raw.level && raw.level.length > 0 ? raw.level : undefined,
+      cadre: raw.cadre ?? '',
+      designation: raw.designation && raw.designation.length > 0 ? raw.designation : undefined,
+      erp_employee_number: raw.erp_employee_number && raw.erp_employee_number.length > 0 ? raw.erp_employee_number : undefined,
     }
 
     const errors: string[] = []
@@ -70,10 +78,18 @@ function buildPreview(rows: string[][], departments: Department[], levels: Level
     if (!parsed.success) {
       for (const issue of parsed.error.issues) errors.push(issue.message)
     } else {
-      const deptOk = departments.some((d) => d.name.toLowerCase() === parsed.data.department.trim().toLowerCase())
-      const levelOk = levels.some((l) => l.name.toLowerCase() === parsed.data.level.trim().toLowerCase())
-      if (!deptOk) errors.push(`Unknown department "${parsed.data.department}"`)
-      if (!levelOk) errors.push(`Unknown level "${parsed.data.level}"`)
+      const deptOk = parsed.data.department
+        ? departments.some((d) => d.name.toLowerCase() === parsed.data.department?.trim().toLowerCase())
+        : true
+      const levelOk = parsed.data.level
+        ? levels.some((l) => l.name.toLowerCase() === parsed.data.level?.trim().toLowerCase())
+        : true
+      if (parsed.data.department && !deptOk) errors.push(`Unknown department "${parsed.data.department}"`)
+      if (parsed.data.level && !levelOk) errors.push(`Unknown level "${parsed.data.level}"`)
+      const designationName = parsed.data.designation ?? parsed.data.cadre
+      if (!designationName || !designations.some((d) => d.name.toLowerCase() === designationName.trim().toLowerCase())) {
+        errors.push(`Unknown designation "${designationName ?? '(blank)'}"`)
+      }
 
       const email = parsed.data.email.trim().toLowerCase()
       if ((emailCounts.get(email) ?? 0) > 1) errors.push('Duplicate email elsewhere in this file')
@@ -85,7 +101,15 @@ function buildPreview(rows: string[][], departments: Department[], levels: Level
   return { header, preview }
 }
 
-export function StaffBulkImport({ departments, levels }: { departments: Department[]; levels: Level[] }) {
+export function StaffBulkImport({
+  departments,
+  levels,
+  designations,
+}: {
+  departments: Department[]
+  levels: Level[]
+  designations: Designation[]
+}) {
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [fileName, setFileName] = useState<string | null>(null)
@@ -114,7 +138,7 @@ export function StaffBulkImport({ departments, levels }: { departments: Departme
         : null
     )
 
-    const { preview: rowsPreview } = buildPreview(rows, departments, levels)
+    const { preview: rowsPreview } = buildPreview(rows, departments, levels, designations)
     setPreview(rowsPreview.slice(0, MAX_BULK_IMPORT_ROWS))
   }
 
@@ -146,8 +170,11 @@ export function StaffBulkImport({ departments, levels }: { departments: Departme
     <div className="mt-4 space-y-4 rounded-lg border border-gray-100 bg-gray-50 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-gray-600">
-          Upload a CSV of staff to add in one go. Each row needs a first name, surname, email, role, department, and
-          level — department and level must match names already set up in Levels/Departments.
+          Export the Google Sheet as CSV and upload it here. Email and designation are required for DTA pricing. First name, surname,
+          role, department, level, and Business Central employee number can be included when available; blank role
+          values become ordinary staff accounts, while blank department/level values remain available for later
+          admin completion. Cadre is the separate employment category from the nominal roll, such as Engineer or
+          Finance. Include names where possible because HR sign-off uses the trusted staff profile.
         </p>
         <Button type="button" variant="secondary" onClick={downloadTemplate}>
           Download CSV template
@@ -195,6 +222,8 @@ export function StaffBulkImport({ departments, levels }: { departments: Departme
                   <th className="py-2 pr-4">Role</th>
                   <th className="py-2 pr-4">Department</th>
                   <th className="py-2 pr-4">Level</th>
+                  <th className="py-2 pr-4">Cadre</th>
+                  <th className="py-2 pr-4">Designation</th>
                   <th className="py-2 pr-3">Status</th>
                 </tr>
               </thead>
@@ -202,9 +231,11 @@ export function StaffBulkImport({ departments, levels }: { departments: Departme
                 {preview.map((row, i) => (
                   <tr key={`${row.email}-${i}`} className="border-b border-gray-100 last:border-0">
                     <td className="py-2 pl-3 pr-4 text-gray-900">{row.email}</td>
-                    <td className="py-2 pr-4 text-gray-700">{row.parsed?.role ?? '—'}</td>
+                    <td className="py-2 pr-4 text-gray-700">{row.parsed?.role ?? 'staff'}</td>
                     <td className="py-2 pr-4 text-gray-700">{row.parsed?.department ?? '—'}</td>
                     <td className="py-2 pr-4 text-gray-700">{row.parsed?.level ?? '—'}</td>
+                    <td className="py-2 pr-4 text-gray-700">{row.parsed?.cadre ?? '—'}</td>
+                    <td className="py-2 pr-4 text-gray-700">{row.parsed?.designation ?? row.parsed?.cadre ?? '—'}</td>
                     <td className="py-2 pr-3">
                       {row.errors.length === 0 ? (
                         <span className="text-green-700">Ready</span>

@@ -176,7 +176,33 @@ export async function getMyRequests() {
     .order('created_at', { ascending: false })
 
   if (error) return { success: false, error: error.message, data: [] }
-  return { success: true, data }
+  if (!data || data.length === 0) return { success: true, data: [] }
+
+  const requestIds = data.map((row) => row.id)
+  const { data: requesterCosting, error: costingError } = await supabase
+    .from('request_travelers')
+    .select(
+      'request_id, staff_id, is_requester, designation_name, is_unmapped, dta_amount, local_running_amount, transport_amount, airport_taxi_amount, traveller_total'
+    )
+    .in('request_id', requestIds)
+    .eq('is_requester', true)
+
+  if (costingError) return { success: false, error: costingError.message, data: [] }
+
+  const costingByRequestId = new Map<string, typeof requesterCosting>()
+  for (const row of requesterCosting ?? []) {
+    const rows = costingByRequestId.get(row.request_id) ?? []
+    rows.push(row)
+    costingByRequestId.set(row.request_id, rows)
+  }
+
+  return {
+    success: true,
+    data: data.map((row) => ({
+      ...row,
+      requester_costing: costingByRequestId.get(row.id) ?? [],
+    })),
+  }
 }
 
 /**
@@ -616,8 +642,8 @@ export async function hrRejectRequest(input: HRRejectInput): Promise<ActionResul
 // ============================================================
 
 /**
- * Get all requests pending MD approval.
- * PRD Section 3.3: MD sees requests with status = 'pending_md'.
+ * Get local requests pending MD approval. ERP-owned requests remain in
+ * Business Central and are excluded from this dashboard.
  * Sorting/filtering (cost, department, destination) happens client-side —
  * the queue is small enough that a materialized view isn't warranted yet
  * (PRD Section 6.1 applies the same reasoning to reporting).
@@ -629,6 +655,7 @@ export async function getPendingMDRequests() {
     .from('travel_requests')
     .select(MD_REQUEST_SELECT)
     .eq('status', 'pending_md')
+    .eq('approval_source', 'local')
     .order('submitted_at', { ascending: true })
 
   if (error) return { success: false, error: error.message, data: [] }
@@ -636,7 +663,7 @@ export async function getPendingMDRequests() {
 }
 
 /**
- * Get MD's decision history: requests that reached a final MD-visible
+ * Get local MD's decision history: requests that reached a final MD-visible
  * outcome. PRD Section 3.3: "History: Full view of past approvals with
  * cost snapshots." Mirrors the MD read RLS policy exactly, so this never
  * returns more than MD is already allowed to see.
@@ -648,6 +675,7 @@ export async function getMDHistory() {
     .from('travel_requests')
     .select(MD_REQUEST_SELECT)
     .in('status', ['approved', 'md_rejected', 'rejected_final'])
+    .eq('approval_source', 'local')
     .order('updated_at', { ascending: false })
 
   if (error) return { success: false, error: error.message, data: [] }
@@ -694,6 +722,7 @@ export async function mdApproveReject(input: ApprovalActionInput): Promise<Actio
     .update({ status: newStatus })
     .eq('id', request_id)
     .eq('status', 'pending_md')
+    .eq('approval_source', 'local')
     .select('id')
     .maybeSingle()
 

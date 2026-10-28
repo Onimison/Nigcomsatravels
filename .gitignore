@@ -42,3 +42,6 @@ supabase/.temp
 # team tasks
 team-task.md
 .desloppify/
+
+# locally generated staff roster exports contain personal data
+staff-roster-*.csv

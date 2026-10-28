@@ -6,7 +6,7 @@
 
 import { StatusBadge } from '@/components/ui/status-badge'
 import { Money } from '@/components/ui/money'
-import { formatDate } from '@/lib/utils/formatting'
+import { formatDate, formatNGN } from '@/lib/utils/formatting'
 import type { RequestStatus, TravelRequest } from '@/types/database'
 
 interface ApprovalInfo {
@@ -25,10 +25,18 @@ interface TravelerSummary {
   traveller_total: number | null
 }
 
+interface RequesterCosting extends TravelerSummary {
+  dta_amount: number | null
+  local_running_amount: number | null
+  transport_amount: number
+  airport_taxi_amount: number
+}
+
 export type StaffRequestRow = TravelRequest & {
   approvals: ApprovalInfo[] | null
   /** Null on pre-Phase-0 rows (queried before this column existed on the join). Empty array for a Phase-0 row somehow missing its own requester row. */
   request_travelers: TravelerSummary[] | null
+  requester_costing: RequesterCosting[] | null
 }
 
 export const RESUBMITTABLE_STATUSES: RequestStatus[] = ['hr_rejected', 'md_rejected']
@@ -55,6 +63,14 @@ export function RequestCard({
   const canResubmit = RESUBMITTABLE_STATUSES.includes(row.status) && Boolean(row.memo_number)
   const travelerCount = row.request_travelers?.length ?? 0
   const hasUnmapped = row.request_travelers?.some((t) => t.is_unmapped) ?? false
+  const requesterCosting = row.requester_costing?.[0] ?? null
+  const hasHrReviewedCosting = ['pending_md', 'approved', 'md_rejected', 'rejected_final'].includes(row.status)
+  const costingLabel = hasHrReviewedCosting ? 'HR-reviewed costing' : 'Estimated costing'
+  const approvalLabel = row.approval_source === 'erp'
+    ? 'Final approval handled in Business Central'
+    : row.status === 'approved'
+      ? 'Final approval recorded'
+      : 'Subject to final approval'
 
   return (
     <div className="rounded-lg border border-gray-200 p-4 dark:border-gray-800">
@@ -89,6 +105,41 @@ export function RequestCard({
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
           Reason: <span className="italic">“{reason}”</span>
         </p>
+      )}
+
+      {row.memo_number && requesterCosting && (
+        <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50/60 p-3 dark:border-blue-900/50 dark:bg-blue-950/20">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-800 dark:text-blue-300">
+              {costingLabel}
+            </p>
+            <p className="text-xs text-blue-700 dark:text-blue-400">
+              {hasHrReviewedCosting ? approvalLabel : 'Subject to HR verification'}
+            </p>
+          </div>
+          {requesterCosting.is_unmapped ? (
+            <p className="mt-2 text-sm text-blue-800 dark:text-blue-300">Your designation is awaiting HR pricing.</p>
+          ) : (
+            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-blue-900 dark:text-blue-200 sm:grid-cols-4">
+              <div>
+                <dt>DTA</dt>
+                <dd className="mt-0.5 font-medium">{requesterCosting.dta_amount === null ? 'Pending HR' : formatNGN(requesterCosting.dta_amount)}</dd>
+              </div>
+              <div>
+                <dt>Local running</dt>
+                <dd className="mt-0.5 font-medium">{requesterCosting.local_running_amount === null ? 'Pending HR' : formatNGN(requesterCosting.local_running_amount)}</dd>
+              </div>
+              <div>
+                <dt>Transport</dt>
+                <dd className="mt-0.5 font-medium">{formatNGN(requesterCosting.transport_amount)}</dd>
+              </div>
+              <div>
+                <dt>Airport taxi</dt>
+                <dd className="mt-0.5 font-medium">{formatNGN(requesterCosting.airport_taxi_amount)}</dd>
+              </div>
+            </dl>
+          )}
+        </div>
       )}
 
       {canResubmit && onResubmit && (
