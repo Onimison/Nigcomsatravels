@@ -86,6 +86,11 @@ const authorRowSchema = staffIdentitySchema
       z.array(z.object({ name: z.string().trim().min(1) })),
       z.null(),
     ]),
+    level: z.union([
+      z.object({ name: z.string().trim().min(1) }),
+      z.array(z.object({ name: z.string().trim().min(1) })),
+      z.null(),
+    ]),
   })
 
 /**
@@ -356,7 +361,7 @@ export async function hrReviewRequestV2(input: HRReviewV2Input): Promise<ActionR
 
   const { data: authorRow, error: authorError } = await supabase
     .from('staff')
-    .select('first_name, surname, email, designation:designations(name)')
+    .select('first_name, surname, email, designation:designations(name), level:levels(name)')
     .eq('id', user.id)
     .single()
 
@@ -372,7 +377,15 @@ export async function hrReviewRequestV2(input: HRReviewV2Input): Promise<ActionR
   const authorDesignation = Array.isArray(parsedAuthor.data.designation)
     ? parsedAuthor.data.designation[0]
     : parsedAuthor.data.designation
-  if (!authorDesignation) {
+  const authorLevel = Array.isArray(parsedAuthor.data.level)
+    ? parsedAuthor.data.level[0]
+    : parsedAuthor.data.level
+  // The logged-in HR reviewer is the memo author. Prefer the current DTA
+  // designation; legacy HR accounts may only have an organizational level
+  // until Admin completes their DTA mapping.
+  const authorTitle = authorDesignation?.name ?? authorLevel?.name
+
+  if (!authorTitle) {
     return { success: false, error: 'The HR author must have an organizational position before submitting this memo' }
   }
 
@@ -433,7 +446,7 @@ export async function hrReviewRequestV2(input: HRReviewV2Input): Promise<ActionR
   const costingMemoBody = renderCostingMemoBody({
     sourceMemoNumber: request.memo_number,
     authorName,
-    authorTitle: authorDesignation.name,
+    authorTitle,
     tripOrigin: request.origin,
     tripDestination: request.destination,
     departureDate: request.depart_date,
@@ -472,7 +485,7 @@ export async function hrReviewRequestV2(input: HRReviewV2Input): Promise<ActionR
     coverage_percent: policySnapshot.coverage_percent,
     costing_memo_lines: costingMemoLines,
     hr_author_name: authorName,
-    hr_author_title: authorDesignation.name,
+    hr_author_title: authorTitle,
     hr_author_email: parsedAuthor.data.email,
     hr_authorized_at: authorizedAt,
     hr_note: hr_note ?? null,
@@ -501,7 +514,7 @@ export async function hrReviewRequestV2(input: HRReviewV2Input): Promise<ActionR
       staff_id: user.id,
       office_email: parsedAuthor.data.email,
       name: authorName,
-      organizational_title: authorDesignation.name,
+      organizational_title: authorTitle,
       authorized_at: authorizedAt,
     },
     p_costing_memo_body: costingMemoBody,
@@ -512,6 +525,12 @@ export async function hrReviewRequestV2(input: HRReviewV2Input): Promise<ActionR
   if (finalizeError) {
     if (finalizeError.code === '40001') return { success: false, error: 'This request is no longer awaiting HR review' }
     if (finalizeError.code === '42501') return { success: false, error: 'You are not authorized to finalize this costing' }
+    if (finalizeError.code === 'PGRST202' || finalizeError.code === '42883') {
+      return {
+        success: false,
+        error: 'The live database is missing the standalone HR finalization migration. Ask the database administrator to apply 20261026000000_standalone_costing_delivery_mode.sql, then retry.',
+      }
+    }
     return { success: false, error: 'The HR review could not be saved. No changes were committed.' }
   }
 

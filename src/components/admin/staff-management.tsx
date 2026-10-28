@@ -177,9 +177,12 @@ function AddStaffForm({
   )
 }
 
-function StaffRow({ row, designations }: { row: StaffWithDetails; designations: DesignationWithBand[] }) {
+function StaffRow({ row, departments, designations }: { row: StaffWithDetails; departments: Department[]; designations: DesignationWithBand[] }) {
   const router = useRouter()
   const [isDeactivating, setIsDeactivating] = useState(false)
+  const [editingDepartment, setEditingDepartment] = useState(false)
+  const [departmentId, setDepartmentId] = useState(row.department_id ?? '')
+  const [isSavingDepartment, setIsSavingDepartment] = useState(false)
   const [editingDesignation, setEditingDesignation] = useState(false)
   const [designationId, setDesignationId] = useState(designations.find((d) => d.name === row.designation?.name)?.id ?? '')
   const [isSavingDesignation, setIsSavingDesignation] = useState(false)
@@ -215,6 +218,24 @@ function StaffRow({ row, designations }: { row: StaffWithDetails; designations: 
     router.refresh()
   }
 
+  async function handleSaveDepartment() {
+    if (!departmentId) {
+      window.alert('Select a department before saving.')
+      return
+    }
+
+    setIsSavingDepartment(true)
+    const result = await editStaff({ id: row.id, department_id: departmentId })
+    setIsSavingDepartment(false)
+
+    if (!result.success) {
+      window.alert(result.error ?? 'Could not save department.')
+      return
+    }
+    setEditingDepartment(false)
+    router.refresh()
+  }
+
   async function handleSaveErpEmployeeNumber() {
     setIsSavingErpEmployeeNumber(true)
     const normalized = erpEmployeeNumber.trim()
@@ -241,8 +262,33 @@ function StaffRow({ row, designations }: { row: StaffWithDetails; designations: 
       <td className="whitespace-nowrap py-3 pr-4 text-sm capitalize text-gray-700">
         {row.role}
       </td>
-      <td className="whitespace-nowrap py-3 pr-4 text-sm text-gray-700">
-        {row.department?.name ?? '—'}
+      <td className="whitespace-nowrap py-3 pr-4">
+        {editingDepartment ? (
+          <div className="flex items-center gap-1.5">
+            <div className="w-40">
+              <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} className="px-2 py-1">
+                <option value="">Select department…</option>
+                {departments.map((department) => (
+                  <option key={department.id} value={department.id}>{department.name}</option>
+                ))}
+              </Select>
+            </div>
+            <Button className="px-2 py-1.5" onClick={handleSaveDepartment} disabled={isSavingDepartment}>
+              {isSavingDepartment ? '…' : 'Save'}
+            </Button>
+            <Button variant="secondary" className="px-2 py-1.5" onClick={() => setEditingDepartment(false)} disabled={isSavingDepartment}>
+              Cancel
+            </Button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setEditingDepartment(true)}
+            className="text-sm text-gray-700 hover:underline"
+          >
+            {row.department?.name ?? <span className="text-amber-600">Unassigned — assign</span>}
+          </button>
+        )}
       </td>
       <td className="whitespace-nowrap py-3 pr-4 text-sm text-gray-700">
         {row.level?.name ?? '—'}
@@ -394,7 +440,7 @@ export function StaffManagement({
             </thead>
             <tbody>
               {staff.map((row) => (
-                <StaffRow key={row.id} row={row} designations={designations} />
+                <StaffRow key={row.id} row={row} departments={departments} designations={designations} />
               ))}
             </tbody>
           </table>

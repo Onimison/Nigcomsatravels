@@ -19,6 +19,14 @@ function Field({ label, value }: { label: string; value: string }) {
   )
 }
 
+function dtaLevel(staff: StaffWithDetails): string {
+  if (staff.designation) {
+    return `${staff.designation.name}${staff.designation.grade_band ? ` (${staff.designation.grade_band.code})` : ''}`
+  }
+  if (staff.level) return staff.level.name
+  return 'Not assigned — contact Admin'
+}
+
 function initials(staff: StaffWithDetails): string {
   return `${staff.first_name?.[0] ?? ''}${staff.surname?.[0] ?? ''}`.toUpperCase() || staff.email[0].toUpperCase()
 }
@@ -50,7 +58,7 @@ export default async function ProfilePage() {
                   {[staff.first_name, staff.surname].filter(Boolean).join(' ') || staff.email}
                 </p>
                 <p className="text-sm text-gray-500">
-                  {staff.role.toUpperCase()} · {staff.department?.name ?? 'No department'}
+                  {staff.role.toUpperCase()} · {staff.department?.name ?? 'Department not assigned'}
                 </p>
                 <span
                   className={`mt-1 inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
@@ -64,14 +72,15 @@ export default async function ProfilePage() {
             <div className="grid gap-5 sm:grid-cols-2">
               <Field label="Email" value={staff.email} />
               <Field label="Role" value={staff.role} />
-              <Field label="Department" value={staff.department?.name ?? '—'} />
-              <Field label="Level" value={staff.level?.name ?? '—'} />
-              <Field
-                label="Travel Coverage"
-                value={staff.level ? `${staff.level.coverage_percent}% of allowance` : '—'}
-              />
-              <Field label="Flight Class" value={staff.level?.flight_class ?? '—'} />
+              <Field label="Department" value={staff.department?.name ?? 'Not assigned — contact Admin'} />
+              <Field label="DTA Level / Designation" value={dtaLevel(staff)} />
+              <Field label="Employment Cadre" value={staff.cadre ?? 'Not provided — contact Admin'} />
             </div>
+            {(!staff.department || !staff.designation) && (
+              <p className="mt-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Your profile is incomplete. Ask an Administrator to assign your department and DTA designation before you submit a travel request.
+              </p>
+            )}
           </>
         )}
       </section>

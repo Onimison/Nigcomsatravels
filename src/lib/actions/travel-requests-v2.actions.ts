@@ -83,6 +83,25 @@ async function insertTravelRequestV2(
     return { success: false, error: 'Invalid travel dates' }
   }
 
+  // A travel request must carry the requester's organizational identity into
+  // HR/MD review and the eventual ERP memo. Do not allow an incomplete staff
+  // profile to create a request that would have no department or DTA level.
+  const { data: requester, error: requesterError } = await supabase
+    .from('staff')
+    .select('department_id, designation_id')
+    .eq('id', requesterId)
+    .single()
+
+  if (requesterError || !requester) {
+    return { success: false, error: 'Could not load your staff profile. Contact Admin.' }
+  }
+  if (!requester.department_id || !requester.designation_id) {
+    return {
+      success: false,
+      error: 'Your staff profile is incomplete. Ask Admin to assign your department and DTA designation before submitting a travel request.',
+    }
+  }
+
   const travellerIds = [...new Set([requesterId, ...input.traveler_staff_ids])]
 
   const [{ data: defaults }, staffBands] = await Promise.all([

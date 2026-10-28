@@ -303,7 +303,8 @@ export async function deactivateStaff(staffId: string): Promise<ActionResult> {
 }
 
 /**
- * Get the signed-in user's own staff record, with department/level resolved.
+ * Get the signed-in user's own staff record, with department, legacy level,
+ * and DTA designation resolved.
  * Used by /staff/profile — self-service, any authenticated staff member can
  * read their own row (RLS: "Staff can view own record").
  */
@@ -317,7 +318,7 @@ export async function getMyProfile() {
 
   const { data, error } = await supabase
     .from('staff')
-    .select('*, department:departments(*), level:levels(*)')
+    .select('*, department:departments(*), level:levels(*), designation:designations(name, grade_band:grade_bands(code, label))')
     .eq('id', user.id)
     .single()
 
