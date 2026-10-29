@@ -1,17 +1,28 @@
 /**
- * Compact "latest prices" snapshot for the HR dashboard home — the most
- * recently-updated rate rows, flat (no domestic/international split). The
- * full categorized table lives on /hr/rates (`FlightPricePanel`, unchanged).
+ * Compact local flight-price snapshot for the HR dashboard home. Legacy
+ * level-specific records are collapsed into one route reference before they
+ * reach this component, so the HR view never exposes staff-level pricing.
  */
 
-import { formatStaleness, isStale, usdToNgn } from '@/lib/utils/formatting'
-import { Money } from '@/components/ui/money'
-import type { RateReferenceWithLevel } from '@/types/database'
+import { formatNGN, formatStaleness, formatUSD, isStale, usdToNgn } from '@/lib/utils/formatting'
+import { groupFlightPriceReferences } from '@/lib/utils/flight-price-reference'
+import type { RateReference } from '@/types/database'
 
-export function FlightPricePreview({ rates, fxRate }: { rates: RateReferenceWithLevel[]; fxRate: number | null }) {
-  const recent = [...rates]
-    .filter((r) => r.flight_estimate != null)
-    .sort((a, b) => new Date(b.updated_at ?? 0).getTime() - new Date(a.updated_at ?? 0).getTime())
+function PriceRange({ minimum, maximum, fxRate }: { minimum: number; maximum: number; fxRate: number | null }) {
+  const samePrice = minimum === maximum
+  const ngn = (value: number) => fxRate ? formatNGN(usdToNgn(value, fxRate)) : formatUSD(value)
+  const usd = samePrice ? formatUSD(minimum) : `${formatUSD(minimum)} – ${formatUSD(maximum)}`
+
+  return (
+    <div className="text-right">
+      <p className="text-sm font-semibold text-gray-900">{samePrice ? ngn(minimum) : `${ngn(minimum)} – ${ngn(maximum)}`}</p>
+      <p className="text-xs text-gray-400">{fxRate ? `≈ ${usd}` : usd}</p>
+    </div>
+  )
+}
+
+export function FlightPricePreview({ rates, fxRate }: { rates: RateReference[]; fxRate: number | null }) {
+  const recent = groupFlightPriceReferences(rates)
     .slice(0, 6)
 
   if (recent.length === 0) {
@@ -26,15 +37,11 @@ export function FlightPricePreview({ rates, fxRate }: { rates: RateReferenceWith
           <div key={row.id} className="flex items-center justify-between gap-2 py-2.5 first:pt-0 last:pb-0">
             <div>
               <p className="text-sm font-medium text-gray-900">{row.destination}</p>
-              <p className="text-xs capitalize text-gray-500">{row.level?.name ?? '—'} · {row.mode}</p>
+              <p className="text-xs capitalize text-gray-500">{row.route_type} · {row.mode ?? 'air'}</p>
             </div>
-            <div className="text-right">
-              <Money
-                ngn={row.flight_estimate != null && fxRate ? usdToNgn(row.flight_estimate, fxRate) : null}
-                usd={row.flight_estimate}
-                align="right"
-              />
-              <p className={`text-xs ${stale ? 'font-medium text-amber-600' : 'text-gray-400'}`}>
+            <div>
+              <PriceRange minimum={row.minimum} maximum={row.maximum} fxRate={fxRate} />
+              <p className={`text-xs text-right ${stale ? 'font-medium text-amber-600' : 'text-gray-400'}`}>
                 {formatStaleness(row.updated_at)}
               </p>
             </div>
