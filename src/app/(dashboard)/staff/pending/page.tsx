@@ -18,7 +18,10 @@ export default async function PendingRequestsPage() {
     redirect('/')
   }
 
-  const { data } = await getMyRequests()
+  const requestsResult = await getMyRequests()
+  if (!requestsResult.success) {
+    throw new Error(requestsResult.error ?? 'Could not load your pending requests')
+  }
 
   return (
     <div className="space-y-6">
@@ -27,7 +30,7 @@ export default async function PendingRequestsPage() {
         title="Pending Requests"
         subtitle="Requests still moving through HR or MD review, or returned to you for revision."
       />
-      <PendingRequestsList requests={(data ?? []) as StaffRequestRow[]} />
+      <PendingRequestsList requests={requestsResult.data as StaffRequestRow[]} />
     </div>
   )
 }

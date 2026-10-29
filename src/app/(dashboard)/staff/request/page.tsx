@@ -32,7 +32,7 @@ export default async function RequestTravelPage({
   } = await supabase.auth.getUser()
 
   const { resubmit } = await searchParams
-  const [{ data: requests }, { data: airports }, { data: gradeBands }, { data: policyDefaults }, { data: staffDirectory }, myBand, { data: staff }] =
+  const [requestsResult, airportsResult, gradeBandsResult, policyDefaultsResult, staffDirectoryResult, myBandResult, { data: staff }] =
     await Promise.all([
       getMyRequests(),
       listAirports(),
@@ -45,13 +45,19 @@ export default async function RequestTravelPage({
         : Promise.resolve({ data: null }),
     ])
 
-  const rows = (requests ?? []) as StaffRequestRow[]
+  if (!requestsResult.success) throw new Error(requestsResult.error ?? 'Could not load your travel requests')
+  if (!airportsResult.success) throw new Error(airportsResult.error ?? 'Could not load the airport list')
+  if (!gradeBandsResult.success) throw new Error(gradeBandsResult.error ?? 'Could not load the DTA grade bands')
+  if (!staffDirectoryResult.success) throw new Error(staffDirectoryResult.error ?? 'Could not load the staff directory')
+  if (!myBandResult.success) throw new Error(myBandResult.error ?? 'Could not load your staff profile')
+
+  const rows = requestsResult.data as StaffRequestRow[]
 
   const currentUser = {
     id: user?.id ?? '',
     name: [staff?.first_name, staff?.surname].filter(Boolean).join(' ') || 'You',
-    designation: myBand.data.designation,
-    gradeBandCode: myBand.data.gradeBand?.code ?? null,
+    designation: myBandResult.data.designation,
+    gradeBandCode: myBandResult.data.gradeBand?.code ?? null,
   }
 
   let resubmitTarget: ResubmitTarget | null = null
@@ -86,10 +92,10 @@ export default async function RequestTravelPage({
 
       <section className="max-w-2xl rounded-xl border border-gray-200 bg-white p-6">
         <RequestFormClient
-          airports={airports}
-          gradeBands={gradeBands}
-          policyDefaults={policyDefaults}
-          staffDirectory={staffDirectory}
+          airports={airportsResult.data}
+          gradeBands={gradeBandsResult.data}
+          policyDefaults={policyDefaultsResult.data}
+          staffDirectory={staffDirectoryResult.data}
           currentUser={currentUser}
           resubmitTarget={resubmitTarget}
         />

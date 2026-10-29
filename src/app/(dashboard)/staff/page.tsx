@@ -31,16 +31,20 @@ export default async function StaffDashboardPage() {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const [{ data }, { data: staff }] = await Promise.all([
+  const [requestsResult, { data: staff }] = await Promise.all([
     getMyRequests(),
     user
       ? supabase.from('staff').select('first_name').eq('id', user.id).single()
       : Promise.resolve({ data: null }),
   ])
 
+  if (!requestsResult.success) {
+    throw new Error(requestsResult.error ?? 'Could not load your travel requests')
+  }
+
   return (
     <StaffDashboard
-      requests={(data ?? []) as StaffRequestRow[]}
+      requests={requestsResult.data as StaffRequestRow[]}
       staffFirstName={staff?.first_name ?? 'there'}
     />
   )

@@ -17,7 +17,10 @@ export default async function TravelHistoryPage() {
     redirect('/')
   }
 
-  const { data } = await getMyRequests()
+  const requestsResult = await getMyRequests()
+  if (!requestsResult.success) {
+    throw new Error(requestsResult.error ?? 'Could not load your travel history')
+  }
 
   return (
     <div className="space-y-6">
@@ -25,7 +28,7 @@ export default async function TravelHistoryPage() {
         title="Travel History"
         subtitle="Every trip you’ve requested, including rejected and resubmitted attempts."
       />
-      <TravelHistory requests={(data ?? []) as StaffRequestRow[]} />
+      <TravelHistory requests={requestsResult.data as StaffRequestRow[]} />
     </div>
   )
 }
