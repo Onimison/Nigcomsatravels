@@ -2,15 +2,14 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { requireDashboardAccess } from '@/lib/utils/auth-guard'
 import { getPendingHRRequests, getHRHistory } from '@/lib/actions/requests.actions'
-import { listFlightPriceReference, getFxRateOverride } from '@/lib/actions/rates.actions'
+import { listGradeBands, getPolicyDefaults } from '@/lib/actions/policy.actions'
 import { RecentRequestsPreview } from '@/components/hr/recent-requests-preview'
-import { FlightPricePreview } from '@/components/hr/flight-price-preview'
+import { DtaPolicyReference } from '@/components/hr/dta-policy-reference'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { StatTile } from '@/components/ui/stat-tile'
 import { LinkButton } from '@/components/ui/button'
 import { ClockIcon, HistoryIcon, XCircleIcon, ArrowRightIcon } from '@/components/ui/icons'
-import type { RateReferenceWithLevel } from '@/types/database'
 
 export const metadata: Metadata = {
   title: 'HR Dashboard — NIGCOMSAT Travel',
@@ -19,11 +18,8 @@ export const metadata: Metadata = {
 
 /**
  * HR Dashboard home — a glanceable overview, not the full working surface.
- * PRD Section 3.2, split per todays-task.md: the editable review queue and
- * the full flight price reference each moved to their own page
- * (/hr/requests, /hr/rates) so this page stays a single round-trip with no
- * heavy client-side form logic — just the stat tiles plus a preview of each
- * with a "view all" link.
+ * PRD Section 3.2: the dashboard keeps the review queue and current DTA
+ * policy visible without exposing the retired flight-price/per-diem model.
  */
 export default async function HRDashboardPage() {
   const auth = await requireDashboardAccess('hr')
@@ -34,14 +30,12 @@ export default async function HRDashboardPage() {
     redirect('/')
   }
 
-  const [pendingResult, historyResult, flightRatesResult, fxRateResult] = await Promise.all([
+  const [pendingResult, historyResult, gradeBandsResult, policyDefaultsResult] = await Promise.all([
     getPendingHRRequests(),
     getHRHistory(),
-    listFlightPriceReference(),
-    getFxRateOverride(),
+    listGradeBands(),
+    getPolicyDefaults(),
   ])
-
-  const fxRate = fxRateResult.success && fxRateResult.data ? Number(fxRateResult.data.value) : null
 
   const resubmissionCount = pendingResult.data.filter((r) => r.previousRejectionReason).length
   const processedToday = historyResult.data.filter((r) => {
@@ -87,15 +81,19 @@ export default async function HRDashboardPage() {
       </Card>
 
       <Card
-        title="Flight Price Reference"
-        description="Latest tracked prices — check here before overriding a suggested rate"
+        title="DTA Policy Reference"
+        description="Current DTA rates used by the staff preview and HR costing review"
         action={
           <LinkButton href="/hr/rates" variant="outline" className="gap-1.5">
-            View Full Reference <ArrowRightIcon className="h-3.5 w-3.5" />
+            View DTA Policy <ArrowRightIcon className="h-3.5 w-3.5" />
           </LinkButton>
         }
       >
-        <FlightPricePreview rates={(flightRatesResult.data ?? []) as RateReferenceWithLevel[]} fxRate={fxRate} />
+        <DtaPolicyReference
+          compact
+          gradeBands={gradeBandsResult.data}
+          policyDefaults={policyDefaultsResult.data}
+        />
       </Card>
     </div>
   )

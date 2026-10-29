@@ -1,22 +1,20 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { requireDashboardAccess } from '@/lib/utils/auth-guard'
-import { listFlightPriceReference, getFxRateOverride } from '@/lib/actions/rates.actions'
-import { FlightPricePanel } from '@/components/hr/flight-price-panel'
+import { listGradeBands, getPolicyDefaults } from '@/lib/actions/policy.actions'
+import { DtaPolicyReference } from '@/components/hr/dta-policy-reference'
 import { PageHeader } from '@/components/ui/page-header'
-import type { RateReferenceWithLevel } from '@/types/database'
 
 export const metadata: Metadata = {
-  title: 'Flight Price Reference — NIGCOMSAT Travel',
-  description: 'Current tracked flight prices, by destination and level',
+  title: 'DTA Policy Reference — NIGCOMSAT Travel',
+  description: 'Current DTA rates used by the travel request calculator',
 }
 
 /**
- * Full Flight Price Reference — split out of the HR dashboard home
- * (todays-task.md). `FlightPricePanel` itself is unchanged; this page is
- * just auth + data fetching, same as the old `hr/page.tsx` was.
+ * HR's read-only view of the DTA policy. Rates are managed by Admin under
+ * Travel Policy and are the same values used in staff previews and HR review.
  */
-export default async function HRRatesPage() {
+export default async function HRDtaPolicyPage() {
   const auth = await requireDashboardAccess('hr')
   if (!auth.authorized) {
     // Belt-and-suspenders — src/proxy.ts already blocks a wrong-role visit
@@ -25,24 +23,26 @@ export default async function HRRatesPage() {
     redirect('/')
   }
 
-  const [flightRatesResult, fxRateResult] = await Promise.all([
-    listFlightPriceReference(),
-    getFxRateOverride(),
+  const [gradeBandsResult, policyDefaultsResult] = await Promise.all([
+    listGradeBands(),
+    getPolicyDefaults(),
   ])
-
-  const fxRate = fxRateResult.success && fxRateResult.data ? Number(fxRateResult.data.value) : null
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Flight Price Reference" subtitle="Managed by Admin — check here before overriding a suggested rate" />
+      <PageHeader title="DTA Policy Reference" subtitle="Managed by Admin — the same policy used in staff previews and HR costing" />
 
-      {!flightRatesResult.success && (
+      {!gradeBandsResult.success && (
         <p className="text-sm text-red-600" role="alert">
-          Could not load flight price reference: {flightRatesResult.error}
+          Could not load DTA policy: {gradeBandsResult.error}
         </p>
       )}
 
-      <FlightPricePanel rates={(flightRatesResult.data ?? []) as RateReferenceWithLevel[]} fxRate={fxRate} />
+      <DtaPolicyReference
+        showHeader={false}
+        gradeBands={gradeBandsResult.data}
+        policyDefaults={policyDefaultsResult.data}
+      />
     </div>
   )
 }
