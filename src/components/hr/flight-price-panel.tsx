@@ -7,7 +7,7 @@
  * component supplies the title/description via PageHeader.
  */
 
-import { formatNGN, formatStaleness, formatUSD, isStale, usdToNgn } from '@/lib/utils/formatting'
+import { formatNGN, formatUSD, usdToNgn } from '@/lib/utils/formatting'
 import { groupFlightPriceReferences, type FlightPriceReferenceRow } from '@/lib/utils/flight-price-reference'
 import type { RateReference } from '@/types/database'
 
@@ -27,57 +27,35 @@ function PriceRange({ minimum, maximum, fxRate }: Pick<FlightPriceReferenceRow, 
 }
 
 function PriceRow({ row, fxRate }: { row: FlightPriceReferenceRow; fxRate: number | null }) {
-  const stale = isStale(row.updated_at)
   return (
     <div className="flex items-center justify-between gap-2 py-2">
       <div>
         <p className="text-sm font-medium text-gray-900 dark:text-gray-50">{row.destination}</p>
-        <p className="text-xs capitalize text-gray-500">{row.route_type} · {row.mode ?? 'air'}</p>
+        <p className="text-xs text-gray-500">Domestic air</p>
       </div>
       <div>
         <PriceRange minimum={row.minimum} maximum={row.maximum} fxRate={fxRate} />
-        <p className={`text-xs ${stale ? 'font-medium text-amber-600 dark:text-amber-400' : 'text-gray-400'}`}>
-          {formatStaleness(row.updated_at)}
-        </p>
+        <p className="text-right text-xs text-gray-400">Reference fare</p>
       </div>
     </div>
   )
 }
 
 export function FlightPricePanel({ rates, fxRate }: { rates: RateReference[]; fxRate: number | null }) {
-  const grouped = groupFlightPriceReferences(rates)
-  const domestic = grouped.filter((r) => r.route_type === 'domestic')
-  const international = grouped.filter((r) => r.route_type === 'international')
+  const domestic = groupFlightPriceReferences(rates)
+    .filter((r) => r.route_type === 'domestic' && r.mode === 'air')
 
   return (
     <section className="rounded-xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
-      {domestic.length === 0 && international.length === 0 ? (
+      {domestic.length === 0 ? (
         <p className="text-sm text-gray-500">No flight prices tracked yet.</p>
       ) : (
-        <div className="grid gap-6 sm:grid-cols-2">
-          <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-              Domestic ({domestic.length})
-            </h3>
-            <div className="mt-1 divide-y divide-gray-100 dark:divide-gray-800">
-              {domestic.length === 0 ? (
-                <p className="py-2 text-sm text-gray-500">None on file.</p>
-              ) : (
-                domestic.map((row) => <PriceRow key={row.id} row={row} fxRate={fxRate} />)
-              )}
-            </div>
-          </div>
-          <div>
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
-              International ({international.length})
-            </h3>
-            <div className="mt-1 divide-y divide-gray-100 dark:divide-gray-800">
-              {international.length === 0 ? (
-                <p className="py-2 text-sm text-gray-500">None on file.</p>
-              ) : (
-                international.map((row) => <PriceRow key={row.id} row={row} fxRate={fxRate} />)
-              )}
-            </div>
+        <div>
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+            Abuja-origin domestic air references ({domestic.length})
+          </h3>
+          <div className="mt-1 divide-y divide-gray-100 dark:divide-gray-800">
+            {domestic.map((row) => <PriceRow key={row.id} row={row} fxRate={fxRate} />)}
           </div>
         </div>
       )}

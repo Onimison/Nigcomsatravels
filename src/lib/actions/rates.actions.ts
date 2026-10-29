@@ -113,10 +113,9 @@ export async function updateRateReference(input: UpdateRateReferenceInput): Prom
 // ============================================================
 
 /**
- * All tracked flight prices (rows with a non-null flight_estimate),
- * grouped domestic/international, newest-updated first within each group.
- * Used by the Admin "Flight Price Reference" panel and the HR dashboard's
- * always-visible reference widget.
+ * Domestic air fare references used by the HR costing views. Road and
+ * international rows remain available to Admin, but they are not useful for
+ * this workflow and must never leak into the HR reference widget.
  */
 export async function listFlightPriceReference() {
   const supabase = await createClient()
@@ -125,6 +124,8 @@ export async function listFlightPriceReference() {
     .from('rate_reference')
     .select('*, level:levels(name)')
     .not('flight_estimate', 'is', null)
+    .eq('route_type', 'domestic')
+    .eq('mode', 'air')
     .order('route_type', { ascending: true })
     .order('updated_at', { ascending: false })
 

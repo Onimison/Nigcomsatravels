@@ -3,8 +3,11 @@ import { redirect } from 'next/navigation'
 import { requireDashboardAccess } from '@/lib/utils/auth-guard'
 import { getPendingHRRequests, getHRHistory } from '@/lib/actions/requests.actions'
 import { listFlightPriceReference, getFxRateOverride } from '@/lib/actions/rates.actions'
+import { listGradeBands, getPolicyDefaults } from '@/lib/actions/policy.actions'
 import { RecentRequestsPreview } from '@/components/hr/recent-requests-preview'
 import { FlightPricePreview } from '@/components/hr/flight-price-preview'
+import { FlightOriginSearch } from '@/components/hr/flight-origin-search'
+import { DtaPolicyDisclosure } from '@/components/hr/dta-policy-disclosure'
 import { PageHeader } from '@/components/ui/page-header'
 import { Card } from '@/components/ui/card'
 import { StatTile } from '@/components/ui/stat-tile'
@@ -31,11 +34,13 @@ export default async function HRDashboardPage() {
     redirect('/')
   }
 
-  const [pendingResult, historyResult, flightRatesResult, fxRateResult] = await Promise.all([
+  const [pendingResult, historyResult, flightRatesResult, fxRateResult, gradeBandsResult, policyDefaultsResult] = await Promise.all([
     getPendingHRRequests(),
     getHRHistory(),
     listFlightPriceReference(),
     getFxRateOverride(),
+    listGradeBands(),
+    getPolicyDefaults(),
   ])
 
   const fxRate = fxRateResult.success && fxRateResult.data ? Number(fxRateResult.data.value) : null
@@ -85,7 +90,7 @@ export default async function HRDashboardPage() {
 
       <Card
         title="Flight Price Reference"
-        description="Latest local flight prices — use as a reference during costing"
+        description="Domestic air references — primary origin Abuja (ABV)"
         action={
           <LinkButton href="/hr/rates" variant="outline" className="gap-1.5">
             View Full Reference <ArrowRightIcon className="h-3.5 w-3.5" />
@@ -93,7 +98,13 @@ export default async function HRDashboardPage() {
         }
       >
         <FlightPricePreview rates={(flightRatesResult.data ?? []) as RateReference[]} fxRate={fxRate} />
+        <FlightOriginSearch />
       </Card>
+
+      <DtaPolicyDisclosure
+        gradeBands={gradeBandsResult.data}
+        policyDefaults={policyDefaultsResult.data}
+      />
     </div>
   )
 }

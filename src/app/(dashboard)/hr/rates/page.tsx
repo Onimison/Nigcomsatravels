@@ -2,13 +2,16 @@ import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { requireDashboardAccess } from '@/lib/utils/auth-guard'
 import { listFlightPriceReference, getFxRateOverride } from '@/lib/actions/rates.actions'
+import { listGradeBands, getPolicyDefaults } from '@/lib/actions/policy.actions'
 import { FlightPricePanel } from '@/components/hr/flight-price-panel'
+import { FlightOriginSearch } from '@/components/hr/flight-origin-search'
+import { DtaPolicyDisclosure } from '@/components/hr/dta-policy-disclosure'
 import { PageHeader } from '@/components/ui/page-header'
 import type { RateReference } from '@/types/database'
 
 export const metadata: Metadata = {
   title: 'Flight Price Reference — NIGCOMSAT Travel',
-  description: 'Current local flight-price references by destination and route type',
+  description: 'Domestic air references — primary origin Abuja (ABV)',
 }
 
 /**
@@ -25,16 +28,18 @@ export default async function HRRatesPage() {
     redirect('/')
   }
 
-  const [flightRatesResult, fxRateResult] = await Promise.all([
+  const [flightRatesResult, fxRateResult, gradeBandsResult, policyDefaultsResult] = await Promise.all([
     listFlightPriceReference(),
     getFxRateOverride(),
+    listGradeBands(),
+    getPolicyDefaults(),
   ])
 
   const fxRate = fxRateResult.success && fxRateResult.data ? Number(fxRateResult.data.value) : null
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Flight Price Reference" subtitle="Local flight prices grouped by destination and route type" />
+      <PageHeader title="Flight Price Reference" subtitle="Domestic air references — primary origin Abuja (ABV)" />
 
       {!flightRatesResult.success && (
         <p className="text-sm text-red-600" role="alert">
@@ -43,6 +48,11 @@ export default async function HRRatesPage() {
       )}
 
       <FlightPricePanel rates={(flightRatesResult.data ?? []) as RateReference[]} fxRate={fxRate} />
+      <FlightOriginSearch />
+      <DtaPolicyDisclosure
+        gradeBands={gradeBandsResult.data}
+        policyDefaults={policyDefaultsResult.data}
+      />
     </div>
   )
 }

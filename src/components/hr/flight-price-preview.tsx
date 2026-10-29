@@ -4,7 +4,7 @@
  * reach this component, so the HR view never exposes staff-level pricing.
  */
 
-import { formatNGN, formatStaleness, formatUSD, isStale, usdToNgn } from '@/lib/utils/formatting'
+import { formatNGN, formatUSD, usdToNgn } from '@/lib/utils/formatting'
 import { groupFlightPriceReferences } from '@/lib/utils/flight-price-reference'
 import type { RateReference } from '@/types/database'
 
@@ -23,6 +23,7 @@ function PriceRange({ minimum, maximum, fxRate }: { minimum: number; maximum: nu
 
 export function FlightPricePreview({ rates, fxRate }: { rates: RateReference[]; fxRate: number | null }) {
   const recent = groupFlightPriceReferences(rates)
+    .filter((row) => row.route_type === 'domestic' && row.mode === 'air')
     .slice(0, 6)
 
   if (recent.length === 0) {
@@ -32,18 +33,15 @@ export function FlightPricePreview({ rates, fxRate }: { rates: RateReference[]; 
   return (
     <div className="divide-y divide-gray-100">
       {recent.map((row) => {
-        const stale = isStale(row.updated_at)
         return (
           <div key={row.id} className="flex items-center justify-between gap-2 py-2.5 first:pt-0 last:pb-0">
             <div>
               <p className="text-sm font-medium text-gray-900">{row.destination}</p>
-              <p className="text-xs capitalize text-gray-500">{row.route_type} · {row.mode ?? 'air'}</p>
+              <p className="text-xs text-gray-500">Domestic air</p>
             </div>
             <div>
               <PriceRange minimum={row.minimum} maximum={row.maximum} fxRate={fxRate} />
-              <p className={`text-xs text-right ${stale ? 'font-medium text-amber-600' : 'text-gray-400'}`}>
-                {formatStaleness(row.updated_at)}
-              </p>
+              <p className="text-right text-xs text-gray-400">Reference fare</p>
             </div>
           </div>
         )
