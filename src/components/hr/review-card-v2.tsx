@@ -54,18 +54,31 @@ export function ReviewCardV2({ row }: { row: TravelRequestForHR }) {
   const priced = useMemo(
     () =>
       travelers.map((t) => {
-        const transport = Number(inputs[t.id]?.transport ?? t.transport_amount)
-        const taxi = Number(inputs[t.id]?.taxi ?? t.airport_taxi_amount)
+        const transportInput = inputs[t.id]?.transport ?? String(t.transport_amount)
+        const taxiInput = inputs[t.id]?.taxi ?? String(t.airport_taxi_amount)
+        const transport = transportInput.trim() === '' ? Number.NaN : Number(transportInput)
+        const taxi = taxiInput.trim() === '' ? Number.NaN : Number(taxiInput)
         const dtaAmount = t.is_unmapped || t.dta_rate_used == null ? null : t.dta_rate_used * days
         const localAmount = t.is_unmapped || t.local_running_rate_used == null ? null : t.local_running_rate_used * days
-        const total = dtaAmount === null || localAmount === null ? null : dtaAmount + localAmount + transport + taxi
+        const total =
+          dtaAmount === null ||
+          localAmount === null ||
+          !Number.isFinite(transport) ||
+          !Number.isFinite(taxi) ||
+          transport < 0 ||
+          taxi < 0
+            ? null
+            : dtaAmount + localAmount + transport + taxi
         return { traveler: t, transport, taxi, dtaAmount, localAmount, total }
       }),
     [travelers, inputs, days]
   )
 
   const anyUnmapped = priced.some((p) => p.traveler.is_unmapped)
-  const total = anyUnmapped ? null : priced.reduce((sum, p) => sum + (p.total ?? 0), 0)
+  const hasInvalidAmounts = priced.some(
+    (p) => !Number.isFinite(p.transport) || !Number.isFinite(p.taxi) || p.transport < 0 || p.taxi < 0,
+  )
+  const total = anyUnmapped || hasInvalidAmounts ? null : priced.reduce((sum, p) => sum + (p.total ?? 0), 0)
 
   function buildBreakdownText(): string {
     const lines = [
@@ -84,15 +97,23 @@ export function ReviewCardV2({ row }: { row: TravelRequestForHR }) {
   }
 
   async function handleCopy() {
-    await navigator.clipboard.writeText(buildBreakdownText())
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(buildBreakdownText())
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setError('Clipboard access failed. Select the breakdown text below and copy it manually.')
+    }
   }
 
   async function handleFinalize() {
     setError(null)
     if (anyUnmapped) {
       setError('One or more travellers have no mapped designation. Ask Admin to map them, then refresh this page.')
+      return
+    }
+    if (hasInvalidAmounts) {
+      setError('Transport and airport taxi must contain non-negative amounts for every traveller.')
       return
     }
 

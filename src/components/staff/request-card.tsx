@@ -67,7 +67,7 @@ export function RequestCard({
   const hasHrReviewedCosting = ['pending_md', 'approved', 'md_rejected', 'rejected_final'].includes(row.status)
   const costingLabel = hasHrReviewedCosting ? 'HR-reviewed costing' : 'Estimated costing'
   const approvalLabel = row.approval_source === 'erp'
-    ? 'Final approval handled in Business Central'
+    ? 'Final approval recorded in ERP'
     : row.status === 'approved'
       ? 'Final approval recorded'
       : 'Subject to final approval'

@@ -35,7 +35,7 @@ export function ManualErpHandoffForm({ exportId, initialHandoff }: { exportId: s
   if (handoff) {
     return (
       <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-900">
-        <p className="font-semibold">Business Central entry recorded manually</p>
+        <p className="font-semibold">ERP entry recorded manually</p>
         <p className="mt-1">Company: {handoff.erp_company_id}</p>
         <p className="mt-1">Costing memo: {handoff.erp_costing_memo_number}</p>
         <p className="mt-1">Workflow reference: {handoff.erp_workflow_reference}</p>
@@ -47,8 +47,8 @@ export function ManualErpHandoffForm({ exportId, initialHandoff }: { exportId: s
   return (
     <form onSubmit={handleSubmit} className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
       <div>
-        <h2 className="text-sm font-semibold text-gray-900">Record manual Business Central entry</h2>
-        <p className="mt-1 text-xs text-gray-600">Enter the references created after you copy or attach this costing in Business Central.</p>
+        <h2 className="text-sm font-semibold text-gray-900">Record manual ERP entry</h2>
+        <p className="mt-1 text-xs text-gray-600">Enter the references created after you copy or attach this costing in the ERP.</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="text-sm text-gray-700">

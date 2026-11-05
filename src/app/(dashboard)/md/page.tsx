@@ -34,6 +34,10 @@ export default async function MDDashboardPage() {
     getMDHistory(),
   ])
 
+  if (!pendingResult.success || !historyResult.success) {
+    throw new Error('The MD dashboard could not load its approval data. Please try again.')
+  }
+
   const approvedThisMonth = historyResult.data.filter((r) => {
     if (r.status !== 'approved') return false
     const updated = new Date(r.updated_at)

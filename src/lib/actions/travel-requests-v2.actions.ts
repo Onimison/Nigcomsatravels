@@ -40,14 +40,22 @@ interface ResolvedStaff {
   gradeBand: GradeBand | null
 }
 
-async function resolveStaffBands(supabase: SupabaseClient, staffIds: string[]): Promise<Map<string, ResolvedStaff>> {
-  const { data } = await supabase
+type StaffBandResolution =
+  | { success: true; data: Map<string, ResolvedStaff> }
+  | { success: false; error: string }
+
+async function resolveStaffBands(supabase: SupabaseClient, staffIds: string[]): Promise<StaffBandResolution> {
+  const { data, error } = await supabase
     .from('staff')
     .select('id, designation:designations(name, grade_band:grade_bands(*))')
     .in('id', staffIds)
 
+  if (error || !data) {
+    return { success: false, error: 'Could not load staff designations. Try again or contact Admin.' }
+  }
+
   const byId = new Map<string, ResolvedStaff>()
-  for (const row of data ?? []) {
+  for (const row of data) {
     const designation = Array.isArray(row.designation) ? row.designation[0] : row.designation
     const gradeBand = designation
       ? ((Array.isArray(designation.grade_band) ? designation.grade_band[0] : designation.grade_band) as GradeBand)
@@ -58,7 +66,7 @@ async function resolveStaffBands(supabase: SupabaseClient, staffIds: string[]): 
       gradeBand: gradeBand ?? null,
     })
   }
-  return byId
+  return { success: true, data: byId }
 }
 
 /**
@@ -104,10 +112,16 @@ async function insertTravelRequestV2(
 
   const travellerIds = [...new Set([requesterId, ...input.traveler_staff_ids])]
 
-  const [{ data: defaults }, staffBands] = await Promise.all([
+  const [{ data: defaults }, staffBandsResult] = await Promise.all([
     getPolicyDefaults(),
     resolveStaffBands(supabase, travellerIds),
   ])
+
+  if (!staffBandsResult.success) return staffBandsResult
+  const staffBands = staffBandsResult.data
+  if (travellerIds.some((staffId) => !staffBands.has(staffId))) {
+    return { success: false, error: 'One or more selected travellers could not be found. Refresh the page and try again.' }
+  }
 
   const coveragePercent = coveragePercentFor(destination.text, defaults)
 
@@ -175,8 +189,16 @@ async function insertTravelRequestV2(
 
   if (travellersError) {
     // Compensate — a request with no travellers (not even the requester) is invalid data.
-    await supabase.from('travel_requests').delete().eq('id', requestRow.id)
-    return { success: false, error: travellersError.message }
+    const { error: cleanupError } = await supabase.from('travel_requests').delete().eq('id', requestRow.id)
+    if (cleanupError) {
+      console.error('Travel request compensation failed', {
+        requestId: requestRow.id,
+        insertError: travellersError.message,
+        cleanupError: cleanupError.message,
+      })
+      return { success: false, error: 'The travel request could not be completed cleanly. Contact Admin before retrying this memo number.' }
+    }
+    return { success: false, error: 'The travel request could not be completed. Please try again.' }
   }
 
   revalidatePath('/staff')

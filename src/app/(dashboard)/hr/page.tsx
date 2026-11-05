@@ -43,6 +43,10 @@ export default async function HRDashboardPage() {
     getPolicyDefaults(),
   ])
 
+  if (!pendingResult.success || !historyResult.success) {
+    throw new Error('The HR dashboard could not load its review data. Please try again.')
+  }
+
   const fxRate = fxRateResult.success && fxRateResult.data ? Number(fxRateResult.data.value) : null
 
   const resubmissionCount = pendingResult.data.filter((r) => r.previousRejectionReason).length

@@ -39,14 +39,21 @@ export default async function FinalizedCostingPage({ params }: CostingPageProps)
       />
 
       <section className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-        <p className="font-semibold">HR verified costing — final approval handled in Business Central</p>
+        <p className="font-semibold">HR verified costing — prepared for ERP entry</p>
+        <p className="mt-1">MD/CEO approval remains in the ERP workflow.</p>
         <p className="mt-1">Source HOD memo: {payload.source_memo_number}</p>
         <p className="mt-1">Costing ID: {payload.export_id} · Revision {payload.costing_memo_revision}</p>
       </section>
 
       <CostingMemoActions payload={payload} />
 
-      <ManualErpHandoffForm exportId={payload.export_id} initialHandoff={handoffResult.data} />
+      {!handoffResult.success && (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900" role="alert">
+          ERP handoff status is unavailable. The costing is still available for PDF or copy/paste export. Apply the manual handoff migration or retry this page before recording ERP references.
+        </p>
+      )}
+
+      <ManualErpHandoffForm exportId={payload.export_id} initialHandoff={handoffResult.success ? handoffResult.data : null} />
 
       <article className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm print:border-0 print:p-0 print:shadow-none">
         <pre className="whitespace-pre-wrap font-sans text-sm leading-6 text-gray-800">{payload.costing_memo_body}</pre>

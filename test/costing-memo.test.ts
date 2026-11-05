@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { buildCostingMemoSubject, renderCostingMemoBody } from '@/lib/erp/costing-memo'
+import { buildCostingMemoSubject, COSTING_MEMO_TEMPLATE_VERSION, renderCostingMemoBody } from '@/lib/erp/costing-memo'
 
 describe('costing memo renderer', () => {
+  it('uses a new template revision for the corrected company header', () => {
+    expect(COSTING_MEMO_TEMPLATE_VERSION).toBe('NIGCOMSAT-HR-TRAVEL-v3')
+  })
+
   it('builds a normalized subject from the destination and reason', () => {
     expect(buildCostingMemoSubject('Kano', 'official inspection')).toBe('TRIP TO KANO TO OFFICIAL INSPECTION')
     expect(buildCostingMemoSubject('Kano', 'Trip to Kano to official inspection.')).toBe('TRIP TO KANO TO OFFICIAL INSPECTION')
@@ -34,6 +38,7 @@ describe('costing memo renderer', () => {
     })
 
     expect(body).toContain('Source HOD memo: NCSL/HR/001')
+    expect(body).toContain("NIGERIAN COMMUNICATIONS SATELLITE LIMITED, Olusegun Obasanjo Space Centre, Umar Musa Yar'Adua Expressway, Lugbe, Abuja")
     expect(body).toContain('DTA of 75%')
     expect(body).toContain('Ada Okafor')
     expect(body).toContain('Human Resources Officer')

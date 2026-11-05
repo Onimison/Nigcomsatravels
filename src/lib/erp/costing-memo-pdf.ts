@@ -61,7 +61,7 @@ export async function buildCostingMemoPdf(payload: ErpExportPayload): Promise<Ui
   const document = await PDFDocument.create()
   document.setTitle(payload.costing_memo_subject)
   document.setAuthor(payload.hr_author_name)
-  document.setSubject('HR verified travel costing; final approval handled in Business Central')
+  document.setSubject('HR verified travel costing; prepared for ERP entry and MD/CEO approval')
 
   const regular = await document.embedFont(StandardFonts.Helvetica)
   const bold = await document.embedFont(StandardFonts.HelveticaBold)
@@ -93,7 +93,7 @@ export async function buildCostingMemoPdf(payload: ErpExportPayload): Promise<Ui
       y -= BODY_LINE_HEIGHT
     }
 
-    page.drawText('HR VERIFIED COSTING - FINAL APPROVAL HANDLED IN BUSINESS CENTRAL', {
+    page.drawText('HR VERIFIED COSTING - PREPARED FOR ERP ENTRY; MD/CEO APPROVAL REMAINS IN ERP', {
       x: PAGE_MARGIN,
       y: pageHeight - 25,
       size: 7,

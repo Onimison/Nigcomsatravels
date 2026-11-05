@@ -2,7 +2,7 @@ import type { ErpExportPayload, ErpMemoLine, TravelMode, TripType } from '@/type
 import { z } from 'zod'
 
 /** The renderer version is separate from the Business Central API version. */
-export const COSTING_MEMO_TEMPLATE_VERSION = 'NIGCOMSAT-HR-TRAVEL-v2'
+export const COSTING_MEMO_TEMPLATE_VERSION = 'NIGCOMSAT-HR-TRAVEL-v3'
 export const ERP_MEMO_TYPE = 'Expense Claim' as const
 export const ERP_MEMO_PRIORITY = 'Urgent' as const
 export const ERP_MEMO_ADDRESSED_TO = 'Managing Director / Chief Executive Officer'
@@ -160,8 +160,7 @@ function formatMemoDate(value: string): string {
 export function renderCostingMemoBody(input: CostingMemoBodyInput): string {
   const subject = buildCostingMemoSubject(input.tripDestination, input.reasonForTravel)
   const lines = [
-    'Nigerian Communications Satellite Limited',
-    '2221st Avenue, FHA, Sector, ABUJA, NG',
+    "NIGERIAN COMMUNICATIONS SATELLITE LIMITED, Olusegun Obasanjo Space Centre, Umar Musa Yar'Adua Expressway, Lugbe, Abuja",
     'Tel: +234906 254710 | Email: info@nigcomsat.gov.ng',
     '',
     'MEMO REPORT',
