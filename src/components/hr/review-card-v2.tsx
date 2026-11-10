@@ -134,7 +134,7 @@ export function ReviewCardV2({ row }: { row: TravelRequestForHR }) {
       setError(result.error ?? 'Something went wrong. Please try again.')
       return
     }
-    router.push('/hr/requests')
+    router.push('/hr/history')
   }
 
   async function handleReject() {
