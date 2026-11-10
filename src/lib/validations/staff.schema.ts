@@ -19,7 +19,7 @@ export const createStaffSchema = z.object({
     .string()
     .min(1, 'Surname is required')
     .max(100, 'Surname is too long'),
-  cadre: z.string().trim().min(1).max(100).optional(),
+  cadre: z.string().trim().min(1, 'Career is required').max(100),
   role: z.enum(['staff', 'hr', 'md', 'admin'], {
     message: 'Please select a valid role',
   }),
@@ -62,8 +62,8 @@ export const staffCsvRowSchema = z.object({
   }).optional(),
   department: z.string().trim().min(1, 'Department cannot be empty').optional(),
   level: z.string().trim().min(1, 'Level cannot be empty').optional(),
-  /** Employment cadre from the nominal roll, such as Engineer or Finance. */
-  cadre: z.string().trim().min(1, 'Cadre cannot be empty').max(100).optional(),
+  /** Employment career from the nominal roll, such as Engineer or Finance. */
+  cadre: z.string().trim().min(1, 'Career is required').max(100),
   /** Rank/designation used by the DTA calculator, such as Manager or Officer II. */
   designation: z.string().trim().min(1, 'Designation cannot be empty').max(100).optional(),
   erp_employee_number: z.string().trim().min(1).max(50).optional(),

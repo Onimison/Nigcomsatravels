@@ -2,7 +2,7 @@
 
 /**
  * Staff Management — PRD Section 3.4: "Add, edit, deactivate staff
- * (Name, Email, Role, Department, Level)."
+ * (Name, Email, Role, Department, Career, DTA designation)."
  *
  * The backend (addStaff/deactivateStaff/listStaff in staff.actions.ts) has
  * existed since Sprint 0; this is the UI that was never built (admin/page.tsx
@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { StaffBulkImport } from '@/components/admin/staff-bulk-import'
-import type { Department, Designation, GradeBand, Level, StaffWithDetails, UserRole } from '@/types/database'
+import type { Department, Designation, GradeBand, StaffWithDetails, UserRole } from '@/types/database'
 
 type DesignationWithBand = Designation & { grade_band: Pick<GradeBand, 'code' | 'label'> | null }
 
@@ -35,10 +35,10 @@ const EMPTY_FORM = {
   first_name: '',
   surname: '',
   email: '',
+  cadre: '',
   role: 'staff' as UserRole,
   department_id: '',
   designation_id: '',
-  erp_employee_number: '',
 }
 
 function staffName(row: StaffWithDetails): string {
@@ -67,6 +67,10 @@ function AddStaffForm({
     e.preventDefault()
     setError(null)
 
+    if (!form.cadre.trim()) {
+      setError('Enter a career before adding this staff member')
+      return
+    }
     if (!form.department_id || !form.designation_id) {
       setError('Select a department and DTA designation')
       return
@@ -77,10 +81,10 @@ function AddStaffForm({
       first_name: form.first_name.trim(),
       surname: form.surname.trim(),
       email: form.email.trim(),
+      cadre: form.cadre.trim(),
       role: form.role,
       department_id: form.department_id,
       designation_id: form.designation_id,
-      erp_employee_number: form.erp_employee_number.trim().length > 0 ? form.erp_employee_number.trim() : undefined,
     })
     setIsSubmitting(false)
 
@@ -123,10 +127,11 @@ function AddStaffForm({
       />
 
       <Input
-        label="Business Central Employee Number"
-        value={form.erp_employee_number}
-        onChange={(e) => update('erp_employee_number', e.target.value)}
-        placeholder="Optional until ERP mapping is available"
+        label="Career"
+        value={form.cadre}
+        onChange={(e) => update('cadre', e.target.value)}
+        placeholder="e.g. Engineer, Finance, Legal"
+        required
       />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -161,6 +166,8 @@ function AddStaffForm({
         </Select>
       </div>
 
+      <p className="text-sm text-gray-600">Status: <span className="font-medium text-green-700">Active</span></p>
+
       {error && (
         <p className="text-sm text-red-600" role="alert">{error}</p>
       )}
@@ -186,9 +193,6 @@ function StaffRow({ row, departments, designations }: { row: StaffWithDetails; d
   const [editingDesignation, setEditingDesignation] = useState(false)
   const [designationId, setDesignationId] = useState(designations.find((d) => d.name === row.designation?.name)?.id ?? '')
   const [isSavingDesignation, setIsSavingDesignation] = useState(false)
-  const [editingErpEmployeeNumber, setEditingErpEmployeeNumber] = useState(false)
-  const [erpEmployeeNumber, setErpEmployeeNumber] = useState(row.erp_employee_number === null ? '' : row.erp_employee_number)
-  const [isSavingErpEmployeeNumber, setIsSavingErpEmployeeNumber] = useState(false)
 
   async function handleDeactivate() {
     if (!window.confirm(`Deactivate ${staffName(row)}? They will no longer be able to log in.`)) return
@@ -236,23 +240,6 @@ function StaffRow({ row, departments, designations }: { row: StaffWithDetails; d
     router.refresh()
   }
 
-  async function handleSaveErpEmployeeNumber() {
-    setIsSavingErpEmployeeNumber(true)
-    const normalized = erpEmployeeNumber.trim()
-    const result = await editStaff({
-      id: row.id,
-      erp_employee_number: normalized.length > 0 ? normalized : null,
-    })
-    setIsSavingErpEmployeeNumber(false)
-
-    if (!result.success) {
-      window.alert(result.error ?? 'Could not save Business Central employee number.')
-      return
-    }
-    setEditingErpEmployeeNumber(false)
-    router.refresh()
-  }
-
   return (
     <tr className="border-b border-gray-100 last:border-0">
       <td className="whitespace-nowrap py-3 pr-4">
@@ -290,9 +277,6 @@ function StaffRow({ row, departments, designations }: { row: StaffWithDetails; d
           </button>
         )}
       </td>
-      <td className="whitespace-nowrap py-3 pr-4 text-sm text-gray-700">
-        {row.level?.name ?? '—'}
-      </td>
       <td className="whitespace-nowrap py-3 pr-4">
         {editingDesignation ? (
           <div className="flex items-center gap-1.5">
@@ -325,32 +309,6 @@ function StaffRow({ row, departments, designations }: { row: StaffWithDetails; d
         {row.cadre ?? <span className="text-amber-600">Not provided</span>}
       </td>
       <td className="whitespace-nowrap py-3 pr-4">
-        {editingErpEmployeeNumber ? (
-          <div className="flex items-center gap-1.5">
-            <Input
-              value={erpEmployeeNumber}
-              onChange={(e) => setErpEmployeeNumber(e.target.value)}
-              className="w-40 px-2 py-1"
-              placeholder="Employee no."
-            />
-            <Button className="px-2 py-1.5" onClick={handleSaveErpEmployeeNumber} disabled={isSavingErpEmployeeNumber}>
-              {isSavingErpEmployeeNumber ? '…' : 'Save'}
-            </Button>
-            <Button variant="secondary" className="px-2 py-1.5" onClick={() => setEditingErpEmployeeNumber(false)} disabled={isSavingErpEmployeeNumber}>
-              Cancel
-            </Button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setEditingErpEmployeeNumber(true)}
-            className="text-sm text-gray-700 hover:underline"
-          >
-            {row.erp_employee_number ?? <span className="text-amber-600">Not mapped</span>}
-          </button>
-        )}
-      </td>
-      <td className="whitespace-nowrap py-3 pr-4">
         <span
           className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
             row.active
@@ -375,12 +333,10 @@ function StaffRow({ row, departments, designations }: { row: StaffWithDetails; d
 export function StaffManagement({
   staff,
   departments,
-  levels,
   designations,
 }: {
   staff: StaffWithDetails[]
   departments: Department[]
-  levels: Level[]
   designations: DesignationWithBand[]
 }) {
   const [openForm, setOpenForm] = useState<'add' | 'import' | null>(null)
@@ -405,7 +361,7 @@ export function StaffManagement({
       </div>
 
       <p className="mt-2 text-sm text-gray-500">
-        New staff are assigned a NIGCOMSAT DTA designation. The legacy level is optional and is kept only for older rate-reference records.
+        New staff must have a career, department, and NIGCOMSAT DTA designation. New accounts are active immediately.
       </p>
 
       {!canAdd && (
@@ -418,7 +374,7 @@ export function StaffManagement({
         <AddStaffForm departments={departments} designations={designations} onDone={() => setOpenForm(null)} />
       )}
 
-      {openForm === 'import' && <StaffBulkImport departments={departments} levels={levels} designations={designations} />}
+      {openForm === 'import' && <StaffBulkImport departments={departments} designations={designations} />}
 
       {staff.length === 0 ? (
         <p className="mt-4 text-sm text-gray-500">No staff members yet.</p>
@@ -430,10 +386,8 @@ export function StaffManagement({
                 <th className="py-2 pr-4">Name</th>
                 <th className="py-2 pr-4">Role</th>
                 <th className="py-2 pr-4">Department</th>
-                <th className="py-2 pr-4">Legacy Level</th>
                 <th className="py-2 pr-4">Designation</th>
-                <th className="py-2 pr-4">Cadre</th>
-                <th className="py-2 pr-4">BC Employee No.</th>
+                <th className="py-2 pr-4">Career</th>
                 <th className="py-2 pr-4">Status</th>
                 <th className="py-2" />
               </tr>

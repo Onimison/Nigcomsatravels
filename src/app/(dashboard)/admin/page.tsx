@@ -84,7 +84,6 @@ export default async function AdminDashboardPage() {
                 <StaffManagement
                   staff={(staffResult.data ?? []) as StaffWithDetails[]}
                   departments={(departmentsResult.data ?? []) as Department[]}
-                  levels={(levelsResult.data ?? []) as Level[]}
                   designations={designationsResult.data}
                 />
               ),
