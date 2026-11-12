@@ -147,7 +147,6 @@ export function TravelRequestForm({
     return staffDirectory
       .filter((s) => s.id !== currentUser.id && !travelerIds.includes(s.id))
       .filter((s) => !search || travelerDisplayName(s).toLowerCase().includes(search))
-      .slice(0, 8)
   }, [staffDirectory, travelerIds, travelerSearch, currentUser.id])
 
   const pricedTravelers = useMemo(() => {
@@ -368,25 +367,55 @@ export function TravelRequestForm({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-gray-700">Travellers</h3>
           <div className="relative">
-            <Button type="button" variant="outline" onClick={() => { setPickerOpen((o) => !o); requestAnimationFrame(() => searchRef.current?.focus()) }}>
+            <Button
+              type="button"
+              variant="outline"
+              aria-haspopup="listbox"
+              aria-expanded={pickerOpen}
+              aria-controls="traveler-picker"
+              onClick={() => {
+                const nextOpen = !pickerOpen
+                setPickerOpen(nextOpen)
+                if (nextOpen) requestAnimationFrame(() => searchRef.current?.focus())
+              }}
+            >
               + Add colleague
             </Button>
             {pickerOpen && (
-              <div className="absolute right-0 z-10 mt-1.5 w-72 rounded-lg border border-gray-200 bg-white p-2 shadow-lg">
+              <div id="traveler-picker" className="absolute right-0 z-10 mt-1.5 w-72 rounded-lg border border-gray-200 bg-white p-2 shadow-lg">
                 <input
                   ref={searchRef}
                   id="traveler-search"
+                  role="combobox"
+                  aria-label="Search available colleagues"
+                  aria-autocomplete="list"
+                  aria-controls="traveler-options"
+                  aria-expanded={pickerOpen}
                   placeholder="Search staff by name…"
                   value={travelerSearch}
                   onChange={(e) => setTravelerSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setPickerOpen(false)
+                    }
+                  }}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                 />
-                <ul className="mt-2 max-h-56 space-y-0.5 overflow-y-auto">
+                <p className="px-2 pt-2 text-xs text-gray-500" aria-live="polite">
+                  {travelerCandidates.length > 0
+                    ? `${travelerCandidates.length} colleague${travelerCandidates.length === 1 ? '' : 's'} available`
+                    : travelerSearch.trim()
+                      ? `No colleagues match “${travelerSearch.trim()}”`
+                      : 'All available colleagues have been added'}
+                </p>
+                <ul id="traveler-options" role="listbox" aria-label="Available colleagues" className="mt-1 max-h-56 space-y-0.5 overflow-y-auto">
                   {travelerCandidates.length === 0 ? (
-                    <li className="px-2 py-2 text-sm text-gray-400">No matching staff</li>
+                    <li className="px-2 py-2 text-sm text-gray-400" role="option" aria-selected="false">
+                      {travelerSearch.trim() ? 'Try a different name.' : 'Remove a selected colleague to make them available again.'}
+                    </li>
                   ) : (
                     travelerCandidates.map((s) => (
-                      <li key={s.id}>
+                      <li key={s.id} role="option" aria-selected="false">
                         <button
                           type="button"
                           onClick={() => addTraveler(s.id)}
