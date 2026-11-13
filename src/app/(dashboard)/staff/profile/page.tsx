@@ -76,9 +76,9 @@ export default async function ProfilePage() {
               <Field label="DTA Level / Designation" value={dtaLevel(staff)} />
               <Field label="Employment Cadre" value={staff.cadre ?? 'Not provided — contact Admin'} />
             </div>
-            {(!staff.department || !staff.designation) && (
+            {!staff.designation && (
               <p className="mt-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                Your profile is incomplete. Ask an Administrator to assign your department and DTA designation before you submit a travel request.
+                Your profile is incomplete. Ask an Administrator to assign your DTA designation before you submit a travel request.
               </p>
             )}
           </>
