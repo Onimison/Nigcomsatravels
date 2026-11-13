@@ -30,6 +30,7 @@ export type RequestStatus =
   | 'md_rejected'
   | 'rejected_final'
   | 'approved'
+  | 'withdrawn'
 
 /** Which system owns the final approval decision for a request. */
 export type ApprovalSource = 'local' | 'erp'
@@ -177,6 +178,9 @@ export interface TravelRequest {
   costing_memo_body: string | null
   costing_memo_template_version: string | null
   erp_export_id: string | null
+  withdrawn_at: string | null
+  withdrawn_by: string | null
+  withdrawal_reason: string | null
 }
 
 export interface HrAuthorSnapshot {
@@ -277,7 +281,7 @@ export type StaffInsert = Omit<Staff, 'created_at'>
 
 export type TravelRequestInsert = Omit<
   TravelRequest,
-  'id' | 'submitted_at' | 'created_at' | 'updated_at'
+  'id' | 'submitted_at' | 'created_at' | 'updated_at' | 'withdrawn_at' | 'withdrawn_by' | 'withdrawal_reason'
 >
 
 export type ApprovalInsert = Omit<Approval, 'id' | 'timestamp'>

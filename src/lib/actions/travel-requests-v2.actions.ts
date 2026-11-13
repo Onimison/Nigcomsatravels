@@ -14,6 +14,7 @@ import { resolveEndpoint, type SupabaseClient } from '@/lib/utils/resolve-endpoi
 import { revalidatePath } from 'next/cache'
 import {
   createTravelRequestV2Schema,
+  withdrawTravelRequestSchema,
   type CreateTravelRequestV2Input,
 } from '@/lib/validations/travel-request-v2.schema'
 import { getPolicyDefaults } from '@/lib/actions/policy.actions'
@@ -222,6 +223,44 @@ export async function submitTravelRequestV2(input: CreateTravelRequestV2Input): 
     travelGroupId: crypto.randomUUID(),
     previousVersionId: null,
   })
+}
+
+/** Withdraw a staff member's own request before HR has started processing it. */
+export async function withdrawTravelRequestV2(input: { request_id: string; reason: string }): Promise<ActionResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { success: false, error: 'Not authenticated' }
+
+  const parsed = withdrawTravelRequestSchema.safeParse(input)
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? 'Invalid withdrawal request' }
+  }
+
+  const { error } = await supabase.rpc('withdraw_travel_request_v1', {
+    p_request_id: parsed.data.request_id,
+    p_reason: parsed.data.reason,
+  })
+
+  if (error) {
+    if (error.code === '42501') return { success: false, error: 'You can only withdraw your own travel requests' }
+    if (error.code === 'P0002') return { success: false, error: 'Travel request not found' }
+    if (error.code === 'P0009') {
+      return { success: false, error: 'Only requests awaiting HR review can be withdrawn' }
+    }
+    if (error.code === '22023') return { success: false, error: 'Please provide a withdrawal reason' }
+    if (error.code === 'PGRST202') return { success: false, error: 'Request withdrawal is not enabled in the configured database yet' }
+    return { success: false, error: 'The travel request could not be withdrawn. Please try again.' }
+  }
+
+  revalidatePath('/staff')
+  revalidatePath('/staff/pending')
+  revalidatePath('/staff/history')
+  revalidatePath('/hr')
+  revalidatePath('/hr/requests')
+  revalidatePath('/hr/history')
+  return { success: true }
 }
 
 /** Resubmit a request HR or MD returned for revision — same versioning chain as the old path (PRD §5.3 equivalent). */

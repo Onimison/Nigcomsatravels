@@ -34,6 +34,7 @@ export const REQUEST_STATUS_LABELS: Record<RequestStatus, string> = {
   md_rejected: 'Returned by MD for Revision',
   rejected_final: 'Rejected (Final)',
   approved: 'Approved',
+  withdrawn: 'Withdrawn by Staff',
 } as const
 
 export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
@@ -64,6 +65,7 @@ export const REQUEST_STATUS_COLORS: Record<RequestStatus, string> = {
   md_rejected: 'bg-amber-100 text-amber-800',
   rejected_final: 'bg-red-100 text-red-800',
   approved: 'bg-green-100 text-green-800',
+  withdrawn: 'bg-gray-100 text-gray-700',
 } as const
 
 // ============================================================

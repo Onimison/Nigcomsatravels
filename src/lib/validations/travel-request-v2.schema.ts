@@ -55,3 +55,10 @@ export const createTravelRequestV2Schema = z
   })
 
 export type CreateTravelRequestV2Input = z.infer<typeof createTravelRequestV2Schema>
+
+export const withdrawTravelRequestSchema = z.object({
+  request_id: z.string().uuid(),
+  reason: z.string().trim().min(1, 'Please explain why you are withdrawing this request').max(500, 'Withdrawal reason is too long'),
+})
+
+export type WithdrawTravelRequestInput = z.infer<typeof withdrawTravelRequestSchema>

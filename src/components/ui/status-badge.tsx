@@ -4,7 +4,7 @@
  * Previously copy-pasted verbatim into staff-dashboard.tsx, hr-dashboard.tsx,
  * and md-dashboard.tsx — centralized here (PRD-aligned Day 3 UI convergence,
  * see IMPLEMENTATION_PLAN.md §3/§4). Always reads from
- * `REQUEST_STATUS_COLORS`/`REQUEST_STATUS_LABELS` (the real 6-state enum in
+ * `REQUEST_STATUS_COLORS`/`REQUEST_STATUS_LABELS` (the request status mapping in
  * `src/lib/utils/constants.ts`), not the stale generic set that lived in
  * `frontend/constants/requeststatus.ts`.
  */

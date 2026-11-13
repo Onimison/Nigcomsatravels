@@ -8,12 +8,23 @@
 import { useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { RequestCard, type StaffRequestRow } from './request-card'
+import { withdrawTravelRequestV2 } from '@/lib/actions/travel-requests-v2.actions'
+import { queueToast } from '@/lib/utils/toast'
 import type { RequestStatus } from '@/types/database'
 
 const ACTIVE_STATUSES: RequestStatus[] = ['pending_hr', 'pending_md', 'hr_rejected', 'md_rejected']
 
 export function PendingRequestsList({ requests }: { requests: StaffRequestRow[] }) {
   const router = useRouter()
+
+  async function handleWithdraw(requestId: string, reason: string) {
+    const result = await withdrawTravelRequestV2({ request_id: requestId, reason })
+    if (result.success) {
+      queueToast('Travel request withdrawn. You can submit a corrected request.')
+      router.refresh()
+    }
+    return result
+  }
 
   // Only the latest version of each trip can be "pending" — earlier rejected
   // versions in the same group are superseded once resubmitted.
@@ -46,6 +57,7 @@ export function PendingRequestsList({ requests }: { requests: StaffRequestRow[] 
               key={row.id}
               row={row}
               onResubmit={(id) => router.push(`/staff/request?resubmit=${id}`)}
+              onWithdraw={handleWithdraw}
             />
           ))}
         </div>
