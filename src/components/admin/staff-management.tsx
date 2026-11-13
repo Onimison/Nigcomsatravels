@@ -2,7 +2,7 @@
 
 /**
  * Staff Management — PRD Section 3.4: "Add, edit, deactivate staff
- * (Name, Email, Role, Department, Career, DTA designation)."
+ * (Name, Email, Role, Cadre, DTA designation)."
  *
  * The backend (addStaff/deactivateStaff/listStaff in staff.actions.ts) has
  * existed since Sprint 0; this is the UI that was never built (admin/page.tsx
@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { StaffBulkImport } from '@/components/admin/staff-bulk-import'
-import type { Department, Designation, GradeBand, StaffWithDetails, UserRole } from '@/types/database'
+import type { Designation, GradeBand, StaffWithDetails, UserRole } from '@/types/database'
 
 type DesignationWithBand = Designation & { grade_band: Pick<GradeBand, 'code' | 'label'> | null }
 
@@ -37,7 +37,6 @@ const EMPTY_FORM = {
   email: '',
   cadre: '',
   role: 'staff' as UserRole,
-  department_id: '',
   designation_id: '',
 }
 
@@ -46,11 +45,9 @@ function staffName(row: StaffWithDetails): string {
 }
 
 function AddStaffForm({
-  departments,
   designations,
   onDone,
 }: {
-  departments: Department[]
   designations: DesignationWithBand[]
   onDone: () => void
 }) {
@@ -68,11 +65,11 @@ function AddStaffForm({
     setError(null)
 
     if (!form.cadre.trim()) {
-      setError('Enter a career before adding this staff member')
+      setError('Enter a cadre before adding this staff member')
       return
     }
-    if (!form.department_id || !form.designation_id) {
-      setError('Select a department and DTA designation')
+    if (!form.designation_id) {
+      setError('Select a DTA designation')
       return
     }
 
@@ -83,7 +80,6 @@ function AddStaffForm({
       email: form.email.trim(),
       cadre: form.cadre.trim(),
       role: form.role,
-      department_id: form.department_id,
       designation_id: form.designation_id,
     })
     setIsSubmitting(false)
@@ -127,30 +123,20 @@ function AddStaffForm({
       />
 
       <Input
-        label="Career"
+        label="Cadre"
         value={form.cadre}
         onChange={(e) => update('cadre', e.target.value)}
         placeholder="e.g. Engineer, Finance, Legal"
         required
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         <Select
           label="Role"
           value={form.role}
           onChange={(e) => update('role', e.target.value as UserRole)}
           options={ROLE_OPTIONS}
         />
-        <Select
-          label="Department"
-          value={form.department_id}
-          onChange={(e) => update('department_id', e.target.value)}
-        >
-          <option value="">Select department…</option>
-          {departments.map((d) => (
-            <option key={d.id} value={d.id}>{d.name}</option>
-          ))}
-        </Select>
         <Select
           label="DTA Designation"
           value={form.designation_id}
@@ -184,12 +170,9 @@ function AddStaffForm({
   )
 }
 
-function StaffRow({ row, departments, designations }: { row: StaffWithDetails; departments: Department[]; designations: DesignationWithBand[] }) {
+function StaffRow({ row, designations }: { row: StaffWithDetails; designations: DesignationWithBand[] }) {
   const router = useRouter()
   const [isDeactivating, setIsDeactivating] = useState(false)
-  const [editingDepartment, setEditingDepartment] = useState(false)
-  const [departmentId, setDepartmentId] = useState(row.department_id ?? '')
-  const [isSavingDepartment, setIsSavingDepartment] = useState(false)
   const [editingDesignation, setEditingDesignation] = useState(false)
   const [designationId, setDesignationId] = useState(designations.find((d) => d.name === row.designation?.name)?.id ?? '')
   const [isSavingDesignation, setIsSavingDesignation] = useState(false)
@@ -222,24 +205,6 @@ function StaffRow({ row, departments, designations }: { row: StaffWithDetails; d
     router.refresh()
   }
 
-  async function handleSaveDepartment() {
-    if (!departmentId) {
-      window.alert('Select a department before saving.')
-      return
-    }
-
-    setIsSavingDepartment(true)
-    const result = await editStaff({ id: row.id, department_id: departmentId })
-    setIsSavingDepartment(false)
-
-    if (!result.success) {
-      window.alert(result.error ?? 'Could not save department.')
-      return
-    }
-    setEditingDepartment(false)
-    router.refresh()
-  }
-
   return (
     <tr className="border-b border-gray-100 last:border-0">
       <td className="whitespace-nowrap py-3 pr-4">
@@ -248,34 +213,6 @@ function StaffRow({ row, departments, designations }: { row: StaffWithDetails; d
       </td>
       <td className="whitespace-nowrap py-3 pr-4 text-sm capitalize text-gray-700">
         {row.role}
-      </td>
-      <td className="whitespace-nowrap py-3 pr-4">
-        {editingDepartment ? (
-          <div className="flex items-center gap-1.5">
-            <div className="w-40">
-              <Select value={departmentId} onChange={(e) => setDepartmentId(e.target.value)} className="px-2 py-1">
-                <option value="">Select department…</option>
-                {departments.map((department) => (
-                  <option key={department.id} value={department.id}>{department.name}</option>
-                ))}
-              </Select>
-            </div>
-            <Button className="px-2 py-1.5" onClick={handleSaveDepartment} disabled={isSavingDepartment}>
-              {isSavingDepartment ? '…' : 'Save'}
-            </Button>
-            <Button variant="secondary" className="px-2 py-1.5" onClick={() => setEditingDepartment(false)} disabled={isSavingDepartment}>
-              Cancel
-            </Button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setEditingDepartment(true)}
-            className="text-sm text-gray-700 hover:underline"
-          >
-            {row.department?.name ?? <span className="text-amber-600">Unassigned — assign</span>}
-          </button>
-        )}
       </td>
       <td className="whitespace-nowrap py-3 pr-4">
         {editingDesignation ? (
@@ -332,15 +269,13 @@ function StaffRow({ row, departments, designations }: { row: StaffWithDetails; d
 
 export function StaffManagement({
   staff,
-  departments,
   designations,
 }: {
   staff: StaffWithDetails[]
-  departments: Department[]
   designations: DesignationWithBand[]
 }) {
   const [openForm, setOpenForm] = useState<'add' | 'import' | null>(null)
-  const canAdd = departments.length > 0 && designations.length > 0
+  const canAdd = designations.length > 0
 
   function toggle(form: 'add' | 'import') {
     setOpenForm((current) => (current === form ? null : form))
@@ -361,20 +296,20 @@ export function StaffManagement({
       </div>
 
       <p className="mt-2 text-sm text-gray-500">
-        New staff must have a career, department, and NIGCOMSAT DTA designation. New accounts are active immediately.
+        New staff must have a cadre and NIGCOMSAT DTA designation. New accounts are active immediately.
       </p>
 
       {!canAdd && (
         <p className="mt-2 text-sm text-amber-600">
-          Add at least one department and DTA designation before adding staff.
+          Add at least one DTA designation before adding staff.
         </p>
       )}
 
       {openForm === 'add' && (
-        <AddStaffForm departments={departments} designations={designations} onDone={() => setOpenForm(null)} />
+        <AddStaffForm designations={designations} onDone={() => setOpenForm(null)} />
       )}
 
-      {openForm === 'import' && <StaffBulkImport departments={departments} designations={designations} />}
+      {openForm === 'import' && <StaffBulkImport designations={designations} />}
 
       {staff.length === 0 ? (
         <p className="mt-4 text-sm text-gray-500">No staff members yet.</p>
@@ -385,16 +320,15 @@ export function StaffManagement({
               <tr className="border-b border-gray-200 text-xs font-medium uppercase tracking-wide text-gray-400">
                 <th className="py-2 pr-4">Name</th>
                 <th className="py-2 pr-4">Role</th>
-                <th className="py-2 pr-4">Department</th>
                 <th className="py-2 pr-4">Designation</th>
-                <th className="py-2 pr-4">Career</th>
+                <th className="py-2 pr-4">Cadre</th>
                 <th className="py-2 pr-4">Status</th>
                 <th className="py-2" />
               </tr>
             </thead>
             <tbody>
               {staff.map((row) => (
-                <StaffRow key={row.id} row={row} departments={departments} designations={designations} />
+                <StaffRow key={row.id} row={row} designations={designations} />
               ))}
             </tbody>
           </table>

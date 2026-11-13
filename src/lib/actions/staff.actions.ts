@@ -45,8 +45,8 @@ export interface BulkAddResult {
 
 /**
  * Add a new staff member.
- * Staff registration uses the DTA designation mapping. The legacy level is
- * optional and is retained only for older rate-reference records.
+ * Staff registration uses the cadre and DTA designation mappings. Legacy
+ * department, level, and ERP fields remain nullable for older records.
  */
 export async function addStaff(input: CreateStaffInput): Promise<ActionResult> {
   const auth = await requireAdmin()
@@ -75,7 +75,7 @@ export async function addStaff(input: CreateStaffInput): Promise<ActionResult> {
     surname: parsed.data.surname,
     role: parsed.data.role ?? 'staff',
     cadre: parsed.data.cadre ?? null,
-    department_id: parsed.data.department_id,
+    department_id: parsed.data.department_id ?? null,
     designation_id: parsed.data.designation_id,
     level_id: parsed.data.level_id ?? null,
     erp_employee_number: parsed.data.erp_employee_number ?? null,
@@ -246,7 +246,7 @@ export async function bulkAddStaff(rows: StaffCsvRow[]): Promise<BulkAddResult> 
 
 /**
  * Edit an existing staff member.
- * PRD Section 3.4: Admin can edit Name, Email, Role, Department, Level.
+ * PRD Section 3.4: Admin can edit Name, Email, Role, Cadre, and designation.
  */
 export async function editStaff(input: UpdateStaffInput): Promise<ActionResult> {
   const auth = await requireAdmin()
@@ -304,7 +304,8 @@ export async function deactivateStaff(staffId: string): Promise<ActionResult> {
 
 /**
  * Get the signed-in user's own staff record, with department, legacy level,
- * and DTA designation resolved.
+ * and DTA designation resolved. Department and level remain available on the
+ * profile for compatibility even though Admin no longer manages them here.
  * Used by /staff/profile — self-service, any authenticated staff member can
  * read their own row (RLS: "Staff can view own record").
  */
@@ -327,7 +328,7 @@ export async function getMyProfile() {
 }
 
 /**
- * List all staff members with department and level details.
+ * List all staff members with DTA designation details.
  * Used by the Admin Dashboard staff management table.
  */
 export async function listStaff() {
@@ -337,7 +338,7 @@ export async function listStaff() {
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('staff')
-    .select('*, department:departments(*), level:levels(*), designation:designations(name, grade_band:grade_bands(code))')
+    .select('*, designation:designations(name, grade_band:grade_bands(code))')
     .order('created_at', { ascending: false })
 
   if (error) {

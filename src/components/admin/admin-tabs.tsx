@@ -1,9 +1,8 @@
 'use client'
 
 /**
- * Admin page tab bar — replaces 4 vertically-stacked sub-apps (Staff,
- * Levels, Rates, Departments) that used to force scrolling past whichever
- * two you didn't want to reach the one you did.
+ * Admin page tab bar — keeps staff management and travel policy as the two
+ * admin surfaces currently supported by the product.
  *
  * URL-synced via `?tab=`, not local-only state, so `nav-config.tsx`'s
  * sidebar links (`/admin?tab=staff` etc.) actually land on the right tab —

@@ -14,10 +14,10 @@ import { parseCsv } from '@/lib/utils/csv'
 import { staffCsvRowSchema, MAX_BULK_IMPORT_ROWS, type StaffCsvRow } from '@/lib/validations/staff.schema'
 import { bulkAddStaff, type BulkAddResult } from '@/lib/actions/staff.actions'
 import { Button } from '@/components/ui/button'
-import type { Department, Designation } from '@/types/database'
+import type { Designation } from '@/types/database'
 
-const TEMPLATE_HEADERS = ['first_name', 'surname', 'email', 'role', 'department', 'cadre', 'designation']
-const TEMPLATE_EXAMPLE = ['Ada', 'Okafor', 'ada.okafor@nigcomsat.gov.ng', 'staff', 'Engineering', 'Engineering', 'Manager']
+const TEMPLATE_HEADERS = ['first_name', 'surname', 'email', 'role', 'cadre', 'designation']
+const TEMPLATE_EXAMPLE = ['Ada', 'Okafor', 'ada.okafor@nigcomsat.gov.ng', 'staff', 'Engineering', 'Manager']
 const REQUIRED_HEADERS = ['email', 'cadre']
 
 interface PreviewRow {
@@ -39,7 +39,6 @@ function downloadTemplate() {
 
 function buildPreview(
   rows: string[][],
-  departments: Department[],
   designations: Designation[],
 ): { header: string[]; preview: PreviewRow[] } {
   if (rows.length === 0) return { header: [], preview: [] }
@@ -64,7 +63,6 @@ function buildPreview(
       surname: raw.surname && raw.surname.length > 0 ? raw.surname : undefined,
       email: raw.email ?? '',
       role: raw.role && raw.role.length > 0 ? raw.role.toLowerCase() : undefined,
-      department: raw.department && raw.department.length > 0 ? raw.department : undefined,
       cadre: raw.cadre ?? '',
       designation: raw.designation && raw.designation.length > 0 ? raw.designation : undefined,
     }
@@ -75,10 +73,6 @@ function buildPreview(
     if (!parsed.success) {
       for (const issue of parsed.error.issues) errors.push(issue.message)
     } else {
-      const deptOk = parsed.data.department
-        ? departments.some((d) => d.name.toLowerCase() === parsed.data.department?.trim().toLowerCase())
-        : true
-      if (parsed.data.department && !deptOk) errors.push(`Unknown department "${parsed.data.department}"`)
       const designationName = parsed.data.designation ?? parsed.data.cadre
       if (!designationName || !designations.some((d) => d.name.toLowerCase() === designationName.trim().toLowerCase())) {
         errors.push(`Unknown designation "${designationName ?? '(blank)'}"`)
@@ -95,10 +89,8 @@ function buildPreview(
 }
 
 export function StaffBulkImport({
-  departments,
   designations,
 }: {
-  departments: Department[]
   designations: Designation[]
 }) {
   const router = useRouter()
@@ -129,7 +121,7 @@ export function StaffBulkImport({
         : null
     )
 
-    const { preview: rowsPreview } = buildPreview(rows, departments, designations)
+    const { preview: rowsPreview } = buildPreview(rows, designations)
     setPreview(rowsPreview.slice(0, MAX_BULK_IMPORT_ROWS))
   }
 
@@ -161,9 +153,8 @@ export function StaffBulkImport({
     <div className="mt-4 space-y-4 rounded-lg border border-gray-100 bg-gray-50 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-gray-600">
-          Export the Google Sheet as CSV and upload it here. Email and career are required. First name, surname,
-          role, department, and DTA designation can be included; blank role values become ordinary staff accounts,
-          while blank department values remain available for later admin completion. Include names where possible
+          Export the Google Sheet as CSV and upload it here. Email and cadre are required. First name, surname,
+          role, and DTA designation can be included; blank role values become ordinary staff accounts. Include names where possible
           because HR sign-off uses the trusted staff profile.
         </p>
         <Button type="button" variant="secondary" onClick={downloadTemplate}>
@@ -210,8 +201,7 @@ export function StaffBulkImport({
                 <tr className="border-b border-gray-200 text-xs font-medium uppercase tracking-wide text-gray-400">
                   <th className="py-2 pl-3 pr-4">Email</th>
                   <th className="py-2 pr-4">Role</th>
-                  <th className="py-2 pr-4">Department</th>
-                  <th className="py-2 pr-4">Career</th>
+                  <th className="py-2 pr-4">Cadre</th>
                   <th className="py-2 pr-4">Designation</th>
                   <th className="py-2 pr-3">Status</th>
                 </tr>
@@ -221,7 +211,6 @@ export function StaffBulkImport({
                   <tr key={`${row.email}-${i}`} className="border-b border-gray-100 last:border-0">
                     <td className="py-2 pl-3 pr-4 text-gray-900">{row.email}</td>
                     <td className="py-2 pr-4 text-gray-700">{row.parsed?.role ?? 'staff'}</td>
-                    <td className="py-2 pr-4 text-gray-700">{row.parsed?.department ?? '—'}</td>
                     <td className="py-2 pr-4 text-gray-700">{row.parsed?.cadre ?? '—'}</td>
                     <td className="py-2 pr-4 text-gray-700">{row.parsed?.designation ?? row.parsed?.cadre ?? '—'}</td>
                     <td className="py-2 pr-3">
